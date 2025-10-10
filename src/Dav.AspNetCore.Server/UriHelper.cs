@@ -12,7 +12,7 @@ internal static class UriHelper
         var uriString = string.Empty;
         for (var i = 0; i < uri.Segments.Length - 1; i++)
         {
-            uriString += uri.Segments[i];
+            uriString += Uri.UnescapeDataString(uri.Segments[i]);
         }
 
         return new Uri(uriString);
@@ -42,7 +42,7 @@ internal static class UriHelper
                 return uri;
         }
 
-        var relativePath = string.Join("", relativeTo.Segments.Skip(uri.Segments.Length));
+        var relativePath = string.Join("", relativeTo.Segments.Select(s => Uri.UnescapeDataString(s)).Skip(uri.Segments.Length));
         if (!relativePath.StartsWith("/"))
             relativePath = $"/{relativePath}";
 
