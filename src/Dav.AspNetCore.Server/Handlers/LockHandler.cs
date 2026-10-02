@@ -130,6 +130,10 @@ internal class LockHandler : RequestHandler
         }
 
         var document = BuildDocument(result.ResourceLock);
+
+        // RFC 4918: a successful LOCK response must carry the issued lock token in the Lock-Token header.
+        Context.Response.Headers["Lock-Token"] = $"<{result.ResourceLock.Id.AbsoluteUri}>";
+
         await Context.WriteDocumentAsync(DavStatusCode.Ok, document, cancellationToken);
     }
 
