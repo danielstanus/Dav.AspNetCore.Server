@@ -170,7 +170,7 @@ public class IfHeaderValue
         var resourceConditions = new List<IfHeaderValueCondition>();
         foreach (var resourceTag in resources)
         foreach (var condition in resourceTag.Conditions)
-            resourceConditions.Add(new IfHeaderValueCondition(string.IsNullOrWhiteSpace(resourceTag.Name) ? null : new Uri(resourceTag.Name.TrimEnd('/')), condition.Tokens, condition.Tags));
+            resourceConditions.Add(new IfHeaderValueCondition(string.IsNullOrWhiteSpace(resourceTag.Name) ? null : UriHelper.CreateUri(resourceTag.Name.TrimEnd('/')), condition.Tokens, condition.Tags));
 
         parsedValue = new IfHeaderValue(resourceConditions);
         return true;

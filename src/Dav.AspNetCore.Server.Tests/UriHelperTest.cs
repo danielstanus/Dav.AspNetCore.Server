@@ -13,13 +13,13 @@ public class UriHelperTest
     public void GetParent(string uriString, string expectedParentUriString)
     {
         // arrange
-        var uri = new Uri(uriString);
+        var uri = UriHelper.CreateUri(uriString);
 
         // act
         var parentUri = uri.GetParent();
 
         // assert
-        Assert.Equal(new Uri(expectedParentUriString).LocalPath, parentUri.LocalPath);
+        Assert.Equal(UriHelper.CreateUri(expectedParentUriString).LocalPath, parentUri.LocalPath);
     }
 
     [Theory]
@@ -29,13 +29,13 @@ public class UriHelperTest
     public void GetRelativeUri(string relativeToUriString, string uriString, string expectedUriString)
     {
         // arrange
-        var relativeTo = new Uri(relativeToUriString);
-        var uri = new Uri(uriString);
+        var relativeTo = UriHelper.CreateUri(relativeToUriString);
+        var uri = UriHelper.CreateUri(uriString);
 
         // act
         var result = relativeTo.GetRelativeUri(uri);
 
         // assert
-        Assert.Equal(new Uri(expectedUriString).LocalPath, result.LocalPath);
+        Assert.Equal(UriHelper.CreateUri(expectedUriString).LocalPath, result.LocalPath);
     }
 }

@@ -37,7 +37,7 @@ public class RequestHandlerTest
 
         var item = new Mock<IStoreItem>();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -77,7 +77,7 @@ public class RequestHandlerTest
         httpContext.SetupSet(context => context.Response.StatusCode = StatusCodes.Status404NotFound);
         
         var store = new Mock<IStore>(MockBehavior.Strict);
-        store.Setup(s => s.GetItemAsync(new Uri("/"), It.IsAny<CancellationToken>())).ReturnsAsync((IStoreCollection?)null);
+        store.Setup(s => s.GetItemAsync(UriHelper.CreateUri("/"), It.IsAny<CancellationToken>())).ReturnsAsync((IStoreCollection?)null);
 
         var requestHandler = new RequestHandlerImpl();
         
@@ -111,7 +111,7 @@ public class RequestHandlerTest
         httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Get);
         httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         
         var store = new Mock<IStore>(MockBehavior.Strict);
@@ -151,11 +151,11 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
 
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -218,12 +218,12 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
 
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -281,7 +281,7 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         
@@ -341,7 +341,7 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         
@@ -392,12 +392,12 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
 
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -460,12 +460,12 @@ public class RequestHandlerTest
         var requestServices = new ServiceCollection();
         var options = new WebDavOptions();
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
 
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -537,7 +537,7 @@ public class RequestHandlerTest
         httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
         httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status412PreconditionFailed);
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync((IStoreItem?)null);
@@ -601,7 +601,7 @@ public class RequestHandlerTest
 
         requestServices.AddSingleton(propertyManager.Object);
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -685,7 +685,7 @@ public class RequestHandlerTest
 
         requestServices.AddSingleton(propertyManager.Object);
                     
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -734,7 +734,7 @@ public class RequestHandlerTest
 
         var item = new Mock<IStoreItem>();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -798,7 +798,7 @@ public class RequestHandlerTest
 
         requestServices.AddSingleton(propertyManager.Object);
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -861,7 +861,7 @@ public class RequestHandlerTest
 
         requestServices.AddSingleton(propertyManager.Object);
 
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);
@@ -891,9 +891,9 @@ public class RequestHandlerTest
 
         var options = new WebDavOptions();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -956,9 +956,9 @@ public class RequestHandlerTest
 
         var options = new WebDavOptions();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var resourceLock = new ResourceLock(
-            new Uri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
             collectionUri,
             LockType.Exclusive,
             new XElement(XName.Get("owner")),
@@ -1047,7 +1047,7 @@ public class RequestHandlerTest
 
         var item = new Mock<IStoreItem>();
         
-        var collectionUri = new Uri("/");
+        var collectionUri = UriHelper.CreateUri("/");
         var collection = new Mock<IStoreCollection>();
         collection.Setup(s => s.Uri).Returns(collectionUri);
         collection.Setup(s => s.GetItemAsync("test.txt", It.IsAny<CancellationToken>())).ReturnsAsync(item.Object);

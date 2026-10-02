@@ -47,20 +47,22 @@ public class DestinationHeaderValue
         if (string.IsNullOrWhiteSpace(input))
             return false;
 
-        if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+        if (Uri.TryCreate(input, UriKind.Absolute, out var absoluteUri))
         {
-            var pathString = new PathString(uri.LocalPath);
-            parsedValue = new DestinationHeaderValue(pathString.ToUri());
-            return true;
+            // Absolute uri, keep the path only so it matches the store resource uris.
+            input = absoluteUri.LocalPath;
+        }
+        else if (!input.StartsWith("/", StringComparison.Ordinal))
+        {
+            // Absolute path without a leading slash, e.g. "test1".
+            input = $"/{input}";
         }
 
-        if(!input.StartsWith("/") && Uri.TryCreate($"/{input}", UriKind.Absolute, out var uri2))
-        {
-            var pathString = new PathString(uri2.LocalPath);
-            parsedValue = new DestinationHeaderValue(pathString.ToUri());
-            return true;
-        }
+        var path = new PathString(input);
+        if (!path.HasValue)
+            return false;
 
-        return false;
+        parsedValue = new DestinationHeaderValue(path.ToUri());
+        return true;
     }
 }

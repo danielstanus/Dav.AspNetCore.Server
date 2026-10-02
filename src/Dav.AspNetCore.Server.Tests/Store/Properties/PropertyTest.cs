@@ -4,6 +4,9 @@ using Xunit;
 
 namespace Dav.AspNetCore.Server.Tests.Store.Properties;
 
+// Both test classes mutate the static Property.Registrations registry, so they share a
+// collection to stop them from running in parallel and wiping each other's registrations.
+[Collection("PropertyRegistry")]
 public class PropertyTest
 {
     public PropertyTest()

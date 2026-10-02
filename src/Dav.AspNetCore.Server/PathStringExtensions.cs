@@ -7,12 +7,12 @@ internal static class PathStringExtensions
     public static Uri ToUri(this PathString path)
     {
         if (string.IsNullOrWhiteSpace(path))
-            return new Uri("/");
+            return UriHelper.CreateUri("/");
 
         var uri = Uri.UnescapeDataString(path.ToUriComponent().TrimEnd('/'));
         if (string.IsNullOrWhiteSpace(uri))
-            return new Uri("/");
+            return UriHelper.CreateUri("/");
 
-        return new Uri(uri);
+        return UriHelper.CreateUri(uri);
     }
 }

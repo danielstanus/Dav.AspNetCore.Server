@@ -90,8 +90,9 @@ public class LocalFileStore : FileStore
         var path = Path.Combine(options.RootPath, uri.LocalPath.TrimStart('/'));
         return ValueTask.FromResult(System.IO.Directory.GetFiles(path).Select(x =>
         {
-            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}";
-            return new Uri(relativePath);
+            // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
+            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
+            return UriHelper.CreateUri(relativePath);
         }).ToArray());
     }
 
@@ -100,8 +101,9 @@ public class LocalFileStore : FileStore
         var path = Path.Combine(options.RootPath, uri.LocalPath.TrimStart('/'));
         return ValueTask.FromResult(System.IO.Directory.GetDirectories(path).Select(x =>
         {
-            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}";
-            return new Uri(relativePath);
+            // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
+            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
+            return UriHelper.CreateUri(relativePath);
         }).ToArray());
     }
 }

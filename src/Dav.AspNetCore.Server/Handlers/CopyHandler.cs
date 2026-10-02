@@ -41,7 +41,7 @@ internal class CopyHandler : RequestHandler
         if (!string.IsNullOrWhiteSpace(Context.Request.PathBase))
         {
             if (Context.Request.PathBase.HasValue)
-                destination = new Uri(destination.LocalPath.Substring(Context.Request.PathBase.Value.Length));
+                destination = UriHelper.CreateUri(destination.LocalPath.Substring(Context.Request.PathBase.Value.Length));
         }
         
         var overwrite = WebDavHeaders.Overwrite ?? false;
