@@ -72,9 +72,11 @@ public class LocalFileStore : FileStore
     public override ValueTask<Stream> OpenFileStreamAsync(Uri uri, OpenFileMode mode, CancellationToken cancellationToken = default)
     {
         var path = Path.Combine(options.RootPath, uri.LocalPath.TrimStart('/'));
+        // FileMode.Create truncates an existing file, so a shorter PUT does not leave
+        // trailing bytes of the previous content behind (File.OpenWrite does not truncate).
         return ValueTask.FromResult<Stream>(mode == OpenFileMode.Read 
             ? System.IO.File.OpenRead(path) 
-            : System.IO.File.OpenWrite(path));
+            : new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None));
     }
 
     public override ValueTask CreateDirectoryAsync(Uri uri, CancellationToken cancellationToken)
