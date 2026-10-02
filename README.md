@@ -12,6 +12,15 @@ It allows you to easily integrate DAV functionality into your ASP.NET Core appli
 - Supports any registered authentication, but also ships with Basic and Digest authentication
 - Extensible infrastructure which lets you design your own store or locking providers
 
+## Requirements
+
+This library targets **.NET 10** (`net10.0`).
+
+> **Migration note:** the project was upgraded from **.NET 7** to **.NET 10**.
+> All projects and the CI/CD workflows now target .NET 10, and the NuGet dependencies
+> (`Microsoft.Data.Sqlite`, `Microsoft.Data.SqlClient`, `Npgsql`,
+> `Microsoft.Extensions.*`, `xunit`, etc.) were updated to their .NET 10 compatible versions.
+
 ## Installation
 
 Install Dav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
@@ -100,3 +109,8 @@ Different sql based implementations are available here:
 
 ## Contributing
 Feel free to open issues or submit pullrequests.
+
+## Fork origin
+
+This repository is a fork of [ThuCommix/Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server),
+originally created by Kevin Scholz. This fork upgrades the project from .NET 7 to .NET 10.

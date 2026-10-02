@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Dav.AspNetCore.Server.Extensions</RootNamespace>
@@ -9,7 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Dav.AspNetCore.Server" Version="1.0.1" />
+      <ProjectReference Include="..\Dav.AspNetCore.Server\Dav.AspNetCore.Server.csproj" />
     </ItemGroup>
 
 </Project>

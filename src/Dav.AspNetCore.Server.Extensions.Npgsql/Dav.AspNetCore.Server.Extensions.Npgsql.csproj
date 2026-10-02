@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
@@ -20,9 +20,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Dav.AspNetCore.Server" Version="1.0.1" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-        <PackageReference Include="Npgsql" Version="7.0.4" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+        <PackageReference Include="Npgsql" Version="9.0.3" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,6 +33,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Dav.AspNetCore.Server\Dav.AspNetCore.Server.csproj" />
         <ProjectReference Include="..\Dav.AspNetCore.Server.Extensions.Ado\Dav.AspNetCore.Server.Extensions.Ado.csproj">
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
             <IncludeAssets>Dav.AspNetCore.Server.Extensions.Ado.dll</IncludeAssets>
@@ -42,7 +42,8 @@
 
     <Target DependsOnTargets="ResolveReferences" Name="CopyProjectReferencesToPackage">
         <ItemGroup>
-            <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))"/>
+            <!-- Only bundle the non-packable Ado helper; Dav.AspNetCore.Server flows as a package dependency. -->
+            <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference')->WithMetadataValue('Filename', 'Dav.AspNetCore.Server.Extensions.Ado'))"/>
         </ItemGroup>
     </Target>
 
