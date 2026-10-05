@@ -27,21 +27,17 @@ jobs:
 
       # Canjea un token OIDC de GitHub por una API key temporal de nuget.org.
       #
-      # Requisitos:
-      #  1) En nuget.org -> Trusted Publishing, crear una politica ACTIVA con:
-      #       Package Owner    = tu usuario (o la organizacion que sera duena del paquete)
-      #       Repository Owner = danielstanus
-      #       Repository       = Dav.AspNetCore.Server
-      #       Workflow File    = deploy.yml         (SOLO el nombre, sin .github/workflows/)
-      #       Environment      = (vacio)
+      # Requisitos en nuget.org -> Trusted Publishing (la politica debe estar ACTIVA):
+      #      Package Owner    = stanusdaniel
+      #      Repository Owner = danielstanus
+      #      Repository       = Dav.AspNetCore.Server   <- NOMBRE DEL REPO en GitHub, NO el del paquete
+      #      Workflow File    = deploy.yml              (SOLO el nombre, sin .github/workflows/)
+      #      Environment      = (VACIO)                 <- si pones un valor, el job debe declarar "environment:" igual
       #
-      #  2) El secret NUGET_USER debe ser tu NOMBRE DE USUARIO (perfil) de nuget.org,
-      #     NO tu email y NO el nombre de la organizacion.
-      #     Debe ser el usuario que CREO la politica (el "policy creator").
-      #     Lo encuentras en: https://www.nuget.org/profiles/<usuario>
+      #   El secret NUGET_USER = stanusdaniel (perfil de nuget.org, NO el email)
       #
-      #  Nota: la URL https://www.nuget.org/api/v2/token es POST-only; abrirla en el
-      #        navegador da "resource removed" y es normal.
+      #  Nota: https://www.nuget.org/api/v2/token es POST-only; abrirlo en el navegador da
+      #        "resource removed" y es normal.
       - name: NuGet login (OIDC -> temp API key)
         uses: NuGet/login@v1
         id: login
