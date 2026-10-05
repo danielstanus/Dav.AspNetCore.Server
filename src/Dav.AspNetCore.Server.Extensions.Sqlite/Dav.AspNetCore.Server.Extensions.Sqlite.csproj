@@ -7,15 +7,15 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <PackageId>Dav.AspNetCore.Server.Extensions.Sqlite</PackageId>
-        <PackageVersion>2.0.0</PackageVersion>
-        <Authors>Kevin Scholz</Authors>
-        <Company>Kevin Scholz</Company>
+        <PackageId>DanielStanus.WebDav.AspNetCore.Server.Extensions.Sqlite</PackageId>
+        <PackageVersion>10.0.0</PackageVersion>
+        <Authors>Daniel Calin Stanus</Authors>
+        <Company>Daniel Calin Stanus</Company>
         <PackageTags>WebDav;AspNetCore;Asp;Dav;AspNetCore WebDav;AspNetCore Dav;Asp WebDav;Asp Dav;Sqlite;SQL;ADO</PackageTags>
-        <PackageProjectUrl>https://github.com/ThuCommix/Dav.AspNetCore.Server</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/ThuCommix/Dav.AspNetCore.Server</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <Description>This library provides sqlite implementations for lock manager and property store.</Description>
+        <Description>SQLite lock manager and property store for DanielStanus.WebDav.AspNetCore.Server. Based on the original work by Kevin Scholz.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     

@@ -4,7 +4,7 @@
 Install Dav.AspNetCore.Server.Extensions.Sqlite via dotnet cli or through the package manager provided by your favorite IDE.
 
 ```cmd
-> dotnet add package Dav.AspNetCore.Server.Extensions.Sqlite
+> dotnet add package DanielStanus.WebDav.AspNetCore.Server.Extensions.Sqlite
 ```
 
 ## Getting started

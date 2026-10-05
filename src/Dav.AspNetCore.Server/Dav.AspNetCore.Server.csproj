@@ -7,15 +7,15 @@
     </PropertyGroup>
     
     <PropertyGroup>
-        <PackageId>Dav.AspNetCore.Server</PackageId>
-        <PackageVersion>1.0.1</PackageVersion>
-        <Authors>Kevin Scholz</Authors>
-        <Company>Kevin Scholz</Company>
+        <PackageId>DanielStanus.WebDav.AspNetCore.Server</PackageId>
+        <PackageVersion>10.0.0</PackageVersion>
+        <Authors>Daniel Calin Stanus</Authors>
+        <Company>Daniel Calin Stanus</Company>
         <PackageTags>WebDav;AspNetCore;Asp;Dav;AspNetCore WebDav;AspNetCore Dav;Asp WebDav;Asp Dav</PackageTags>
-        <PackageProjectUrl>https://github.com/ThuCommix/Dav.AspNetCore.Server</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/ThuCommix/Dav.AspNetCore.Server</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <Description>This library provides functionality to add WebDav support to your AspNetCore application.</Description>
+        <Description>Fork of Dav.AspNetCore.Server (MIT) providing a WebDav implementation for ASP.NET Core, updated to .NET 10. Based on the original work by Kevin Scholz.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

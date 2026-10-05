@@ -4,7 +4,7 @@
 Install Dav.AspNetCore.Server.Extensions.SqlServer via dotnet cli or through the package manager provided by your favorite IDE.
 
 ```cmd
-> dotnet add package Dav.AspNetCore.Server.Extensions.SqlServer
+> dotnet add package DanielStanus.WebDav.AspNetCore.Server.Extensions.SqlServer
 ```
 
 ## Getting started

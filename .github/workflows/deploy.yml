@@ -1,22 +1,41 @@
 name: Deploy Packages
 
 on: workflow_dispatch
-    
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC para Trusted Publishing (sin API key de larga duración)
+      contents: read
     defaults:
       run:
         working-directory: ./src
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup dotnet
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
       - name: Install dependencies
         run: dotnet restore
+
       - name: Create packages
         run: dotnet pack -c Release --include-source
+
+      # Canjea un token OIDC de GitHub por una API key temporal de nuget.org.
+      # Requiere configurar en nuget.org una politica de Trusted Publishing:
+      #   Repository Owner = danielstanus
+      #   Repository       = Dav.AspNetCore.Server
+      #   Workflow File    = deploy.yml
+      # Y un secret NUGET_USER con tu usuario de nuget.org (NO el email).
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push packages
-        run: dotnet nuget push "**/*.nupkg" --skip-duplicate -k ${{ secrets.NUGET_APIKEY }} -s https://api.nuget.org/v3/index.json
+        run: dotnet nuget push "**/*.nupkg" --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

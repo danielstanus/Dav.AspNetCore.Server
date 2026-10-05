@@ -1,11 +1,11 @@
-[![CI](https://github.com/ThuCommix/Dav.AspNetCore.Server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThuCommix/Dav.AspNetCore.Server/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/static/v1?label=License&message=MIT&color=success)](https://github.com/ThuCommix/Dav.AspNetCore.Server/blob/main/LICENSE)
-[![Nuget](https://img.shields.io/nuget/v/Dav.AspNetCore.Server)](https://www.nuget.org/packages/Dav.AspNetCore.Server/)
+[![CI](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/static/v1?label=License&message=MIT&color=success)](https://github.com/danielstanus/Dav.AspNetCore.Server/blob/main/LICENSE)
+[![Nuget](https://img.shields.io/nuget/v/DanielStanus.WebDav.AspNetCore.Server)](https://www.nuget.org/packages/DanielStanus.WebDav.AspNetCore.Server/)
 
 # WebDAV for ASP.NET Core
 
-Dav.AspNetCore.Server is a WebDAV implementation based on <a href="http://www.webdav.org/specs/rfc4918.html">RFC 4918</a>.
-It allows you to easily integrate DAV functionality into your ASP.NET Core application. Some architectural concepts where taken from <a href="https://github.com/ramondeklein/nwebdav">NWebDav</a> but where greatly improved upon.
+This package (`DanielStanus.WebDav.AspNetCore.Server`) is a fork of [Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server), a WebDAV implementation based on <a href="http://www.webdav.org/specs/rfc4918.html">RFC 4918</a>.
+It allows you to easily integrate DAV functionality into your ASP.NET Core application.
 
 ## Features
 - RFC 4918 compliant
@@ -23,10 +23,10 @@ This library targets **.NET 10** (`net10.0`).
 
 ## Installation
 
-Install Dav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
+Install DanielStanus.WebDav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
 
 ```cmd
-> dotnet add package Dav.AspNetCore.Server
+> dotnet add package DanielStanus.WebDav.AspNetCore.Server
 ```
 ## Getting started
 
@@ -113,4 +113,15 @@ Feel free to open issues or submit pullrequests.
 ## Fork origin
 
 This repository is a fork of [ThuCommix/Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server),
-originally created by Kevin Scholz. This fork upgrades the project from .NET 7 to .NET 10.
+originally created by **Kevin Scholz** and licensed under **MIT**. This fork upgrades the project from .NET 7 to .NET 10
+and is published on NuGet as **`DanielStanus.WebDav.AspNetCore.Server`** (and its `...Extensions.*` packages).
+
+The original copyright and MIT license are preserved. This fork is not affiliated with or endorsed by the original author.
+
+### What this fork adds
+
+- Migration to **.NET 10**.
+- Fixes for running on **Windows**: platform-independent `Uri` handling (previously every WebDAV request except `OPTIONS` failed with HTTP 500).
+- `Lock-Token` response header on `LOCK` (RFC 4918) so Office/Word can edit.
+- `PUT` now truncates the file (previously left trailing bytes when overwriting with shorter content).
+- `MS-Author-Via: DAV` header on `OPTIONS` for Office compatibility.
