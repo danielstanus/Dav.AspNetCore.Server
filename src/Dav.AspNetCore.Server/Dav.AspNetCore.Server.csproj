@@ -7,7 +7,7 @@
     </PropertyGroup>
     
     <PropertyGroup>
-        <PackageId>DanielStanus.WebDav.AspNetCore.Server</PackageId>
+        <PackageId>DCS.WebDav.AspNetCore.Server</PackageId>
         <PackageVersion>1.0.0</PackageVersion>
         <Authors>Daniel Calin Stanus</Authors>
         <Company>Daniel Calin Stanus</Company>

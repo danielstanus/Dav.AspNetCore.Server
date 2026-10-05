@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <PackageId>DanielStanus.WebDav.AspNetCore.Server.Extensions.Npgsql</PackageId>
+        <PackageId>DCS.WebDav.AspNetCore.Server.Extensions.Npgsql</PackageId>
         <PackageVersion>1.0.0</PackageVersion>
         <Authors>Daniel Calin Stanus</Authors>
         <Company>Daniel Calin Stanus</Company>
@@ -15,7 +15,7 @@
         <PackageProjectUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</PackageProjectUrl>
         <RepositoryUrl>https://github.com/danielstanus/Dav.AspNetCore.Server</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <Description>PostgreSQL (Npgsql) lock manager and property store for DanielStanus.WebDav.AspNetCore.Server. Based on the original work by Kevin Scholz.</Description>
+        <Description>PostgreSQL (Npgsql) lock manager and property store for DCS.WebDav.AspNetCore.Server. Based on the original work by Kevin Scholz.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

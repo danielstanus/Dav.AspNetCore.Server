@@ -1,10 +1,10 @@
 [![CI](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/static/v1?label=License&message=MIT&color=success)](https://github.com/danielstanus/Dav.AspNetCore.Server/blob/main/LICENSE)
-[![Nuget](https://img.shields.io/nuget/v/DanielStanus.WebDav.AspNetCore.Server)](https://www.nuget.org/packages/DanielStanus.WebDav.AspNetCore.Server/)
+[![Nuget](https://img.shields.io/nuget/v/DCS.WebDav.AspNetCore.Server)](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server/)
 
 # WebDAV for ASP.NET Core
 
-This package (`DanielStanus.WebDav.AspNetCore.Server`) is a fork of [Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server), a WebDAV implementation based on <a href="http://www.webdav.org/specs/rfc4918.html">RFC 4918</a>.
+This package (`DCS.WebDav.AspNetCore.Server`) is a fork of [Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server), a WebDAV implementation based on <a href="http://www.webdav.org/specs/rfc4918.html">RFC 4918</a>.
 It allows you to easily integrate DAV functionality into your ASP.NET Core application.
 
 ## Features
@@ -23,10 +23,10 @@ This library targets **.NET 10** (`net10.0`).
 
 ## Installation
 
-Install DanielStanus.WebDav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
+Install DCS.WebDav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
 
 ```cmd
-> dotnet add package DanielStanus.WebDav.AspNetCore.Server
+> dotnet add package DCS.WebDav.AspNetCore.Server
 ```
 ## Getting started
 
@@ -114,7 +114,7 @@ Feel free to open issues or submit pullrequests.
 
 This repository is a fork of [ThuCommix/Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server),
 originally created by **Kevin Scholz** and licensed under **MIT**. This fork upgrades the project from .NET 7 to .NET 10
-and is published on NuGet as **`DanielStanus.WebDav.AspNetCore.Server`** (and its `...Extensions.*` packages).
+and is published on NuGet as **`DCS.WebDav.AspNetCore.Server`** (and its `...Extensions.*` packages).
 
 The original copyright and MIT license are preserved. This fork is not affiliated with or endorsed by the original author.
 

@@ -4,7 +4,7 @@
 Install Dav.AspNetCore.Server.Extensions.Npgsql via dotnet cli or through the package manager provided by your favorite IDE.
 
 ```cmd
-> dotnet add package DanielStanus.WebDav.AspNetCore.Server.Extensions.Npgsql
+> dotnet add package DCS.WebDav.AspNetCore.Server.Extensions.Npgsql
 ```
 
 ## Getting started
