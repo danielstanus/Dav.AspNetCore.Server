@@ -1,36 +1,55 @@
-[![CI](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/static/v1?label=License&message=MIT&color=success)](https://github.com/danielstanus/Dav.AspNetCore.Server/blob/main/LICENSE)
-[![Nuget](https://img.shields.io/nuget/v/DCS.WebDav.AspNetCore.Server)](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server/)
+<div align="center">
 
-# WebDAV for ASP.NET Core
+# DCS.WebDav.AspNetCore.Server
 
-This package (`DCS.WebDav.AspNetCore.Server`) is a fork of [Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server), a WebDAV implementation based on <a href="http://www.webdav.org/specs/rfc4918.html">RFC 4918</a>.
-It allows you to easily integrate DAV functionality into your ASP.NET Core application.
+![.NET 10](https://img.shields.io/badge/.NET%2010-512BD4?style=for-the-badge&logo=.net&logoColor=white)
+![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)
+![WebDAV](https://img.shields.io/badge/WebDAV-RFC%204918-0A7EA4?style=for-the-badge)
+[![NuGet](https://img.shields.io/nuget/v/DCS.WebDav.AspNetCore.Server?style=for-the-badge&logo=nuget&logoColor=white)](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server)
+![License](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)
+[![CI](https://img.shields.io/github/actions/workflow/status/danielstanus/Dav.AspNetCore.Server/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/danielstanus/Dav.AspNetCore.Server/actions/workflows/ci.yml)
+
+**WebDAV (RFC 4918) server for ASP.NET Core. Add DAV endpoints to your app to list, read, write, move, copy and lock resources — and let Microsoft Office open and save documents directly.**
+
+[Installation](#installation) •
+[Getting started](#getting-started) •
+[Locking](#locking) •
+[Properties](#properties) •
+[Authentication](#authentication) •
+[Office integration](#office-integration) •
+[Extensions](#extensions) •
+[Releases](#releases) •
+[Fork origin](#fork-origin)
+
+</div>
+
+---
 
 ## Features
-- RFC 4918 compliant
-- Supports any registered authentication, but also ships with Basic and Digest authentication
-- Extensible infrastructure which lets you design your own store or locking providers
+
+- RFC 4918 compliant WebDAV server (`OPTIONS`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `PROPFIND`, `PROPPATCH`, `COPY`, `MOVE`, `LOCK`, `UNLOCK`).
+- Works with any registered authentication, and ships with **Basic** and **Digest**.
+- Extensible: bring your own **store**, **lock manager** or **property store**.
+- Office friendly: emits `MS-Author-Via: DAV` and a proper `Lock-Token`, so **Word / Excel / PowerPoint** can open and save documents over WebDAV.
+- Targets **.NET 10** and runs on **Windows**, Linux and macOS.
 
 ## Requirements
 
-This library targets **.NET 10** (`net10.0`).
-
-> **Migration note:** the project was upgraded from **.NET 7** to **.NET 10**.
-> All projects and the CI/CD workflows now target .NET 10, and the NuGet dependencies
-> (`Microsoft.Data.Sqlite`, `Microsoft.Data.SqlClient`, `Npgsql`,
-> `Microsoft.Extensions.*`, `xunit`, etc.) were updated to their .NET 10 compatible versions.
+- **.NET 10** (`net10.0`) or later.
 
 ## Installation
 
-Install DCS.WebDav.AspNetCore.Server via dotnet cli or through the package manager provided by your favorite IDE.
+Install via the .NET CLI or your IDE's package manager:
 
 ```cmd
-> dotnet add package DCS.WebDav.AspNetCore.Server
+dotnet add package DCS.WebDav.AspNetCore.Server
 ```
+
+The optional SQL providers are separate packages (see [Extensions](#extensions)).
+
 ## Getting started
 
-In order to enable WebDAV in your project you need to add the following service registrations and middlewares:
+Register the WebDAV services and add the middleware:
 
 ```csharp
 using Dav.AspNetCore.Server;
@@ -40,15 +59,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWebDav(davBuilder =>
 {
-    // add the local files store with a mount point
+    // expose a local folder
     davBuilder.AddLocalFiles(options =>
     {
-        options.RootPath = "/tmp/";
+        options.RootPath = @"C:\WebDavRoot\";
     });
 });
 
 var app = builder.Build();
 
+// mount WebDAV under /dav
 app.Map("/dav", davApp =>
 {
     davApp.UseWebDav();
@@ -57,64 +77,117 @@ app.Map("/dav", davApp =>
 app.Run();
 ```
 
-## Add locking support
+> Set `builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = null);` to allow uploading large files.
 
-There are different types of locking implementations available. 
-If you need something simple you can start out with the in memory lock implementation:
+## Locking
+
+Office requires `LOCK`/`UNLOCK`. Start with the in-memory manager, or use a SQL one for multiple instances:
 
 ```csharp
 builder.Services.AddWebDav(davBuilder =>
 {
-    [...]
     davBuilder.AddInMemoryLocks();
+    // or: AddSqliteLocks / AddSqlLocks / AddNpgsqlLocks
 });
 ```
 
-In case you need something more distributed you can check out the other sql based implementations:
-- [Sqlite](src/Dav.AspNetCore.Server.Extensions.Sqlite/README.md)
-- [SqlServer](src/Dav.AspNetCore.Server.Extensions.SqlServer/README.md)
-- [PostgreSQL](src/Dav.AspNetCore.Server.Extensions.Npgsql/README.md)
+## Properties
 
-## Accepting properties
-
-Storing (custom) properties is a crucial part of DAV. To start accepting properties you need to configure
-a property store. Like previously mentioned in the locking section there are different implementations available:
+Storing properties is a core part of DAV and is **required for Office** (it sends `PROPPATCH` with `Win32*` properties). Configure a property store:
 
 ```csharp
 builder.Services.AddWebDav(davBuilder =>
 {
-    [...]
-    
-    // there will be a xml file containing properties for each resource made available
-    // it's important to not expose this folder
-    
+    // one XML file per resource; do NOT expose this folder
     davBuilder.AddXmlFilePropertyStore(options =>
     {
         options.AcceptCustomProperties = true;
-        options.RootPath = "/tmp_meta/";
+        options.RootPath = @"C:\WebDavMeta\";
     });
+    // or: AddSqlitePropertyStore / AddSqlPropertyStore / AddNpgsqlPropertyStore
 });
 ```
 
-You may ask: what exactly is a "custom" property; A custom property is a property not made available by the
-dav resource itself, it can be arbitrary data. Since this example uses the local file store, all properties
-are computed and thus can't be changed which only leaves us with adding additional properties. On different
-dav resources with normal properties (not protected and not calculated) you can change them without having
-`AcceptCustomProperties = true`.
+A "custom" property is one not computed by the DAV resource itself. With the local file store all properties are computed, so you can only **add** custom ones — which is exactly what `AcceptCustomProperties = true` enables.
 
-Different sql based implementations are available here:
-- [Sqlite](src/Dav.AspNetCore.Server.Extensions.Sqlite/README.md)
-- [SqlServer](src/Dav.AspNetCore.Server.Extensions.SqlServer/README.md)
-- [PostgreSQL](src/Dav.AspNetCore.Server.Extensions.Npgsql/README.md)
+## Authentication
+
+```csharp
+using Dav.AspNetCore.Server.Authentication;
+
+builder.Services.AddAuthentication().AddBasic(options =>
+{
+    options.Realm = "My WebDAV";
+
+    options.Events.OnAuthenticating = (context, cancellationToken) =>
+    {
+        // validate context.UserName / context.Password against your own store/API
+        var isValid = context.UserName == "user" && context.Password == "secret";
+        return Task.FromResult(isValid);
+    };
+});
+
+builder.Services.AddWebDav(davBuilder =>
+{
+    davBuilder.RequiresAuthentication = true;
+});
+
+app.Map("/dav", davApp =>
+{
+    davApp.UseAuthentication(); // must run before UseWebDav
+    davApp.UseWebDav();
+});
+```
+
+> Always combine Basic/Digest with **HTTPS**.
+
+## Office integration
+
+The server is ready for Office: `OPTIONS` advertises `MS-Author-Via: DAV`, `LOCK` returns a `Lock-Token`, and `PUT` replaces the file. From a web page you can hand a document to desktop Word/Excel with the Office URI scheme:
+
+```html
+<a href="ms-word:ofe|u|https://your-server/dav/report.docx">Open in Word</a>
+```
+
+Notes:
+
+- The document URL must be `http`/`https` (prefer **https**).
+- Office may open WebDAV documents in **Protected View** (read-only). For a smooth experience, on the client machines add the host to **Trusted Sites** and enable **"Open documents read-write while browsing"** (deploy via GPO/Intune). See the [documentation](https://learn.microsoft.com/en-us/office/client-developer/office-uri-schemes) for the Office URI scheme.
+- Without a property store, Office `PROPPATCH` of its `Win32*` properties returns `404` — configure one (see [Properties](#properties)).
+
+## Extensions
+
+Distributed locks and properties on SQL databases (each has its own README and schema):
+
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+
+- [Sqlite](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server.Extensions.Sqlite) — `DCS.WebDav.AspNetCore.Server.Extensions.Sqlite`
+- [SqlServer](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server.Extensions.SqlServer) — `DCS.WebDav.AspNetCore.Server.Extensions.SqlServer`
+- [PostgreSQL](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server.Extensions.Npgsql) — `DCS.WebDav.AspNetCore.Server.Extensions.Npgsql`
+
+## Releases
+
+You can also consume the library **without NuGet.org**: every version is published as a GitHub Release with the `.nupkg` files attached.
+
+- Releases: https://github.com/danielstanus/Dav.AspNetCore.Server/releases
+
+Download the `.nupkg` files and use them as a local feed:
+
+```cmd
+:: put the .nupkg files in a folder, e.g. C:\Feeds\dav
+dotnet nuget add source "C:\Feeds\dav" -n dav-release
+dotnet add package DCS.WebDav.AspNetCore.Server --version 1.0.0
+```
 
 ## Contributing
-Feel free to open issues or submit pullrequests.
+
+Feel free to open issues or submit pull requests.
 
 ## Fork origin
 
-This repository is a fork of [ThuCommix/Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server),
-originally created by **Kevin Scholz** and licensed under **MIT**. This fork upgrades the project from .NET 7 to .NET 10
-and is published on NuGet as **`DCS.WebDav.AspNetCore.Server`** (and its `...Extensions.*` packages).
+This repository is a fork of [ThuCommix/Dav.AspNetCore.Server](https://github.com/ThuCommix/Dav.AspNetCore.Server), originally created by **Kevin Scholz** and licensed under **MIT**. This fork upgrades the project from .NET 7 to .NET 10 and is published on NuGet as **`DCS.WebDav.AspNetCore.Server`** (and its `...Extensions.*` packages).
 
 The original copyright and MIT license are preserved. This fork is not affiliated with or endorsed by the original author.
 
