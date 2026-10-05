@@ -20,6 +20,8 @@ internal class OptionsHandler : IRequestHandler
         CancellationToken cancellationToken = default)
     {
         context.Response.Headers["DAV"] = new[] { "1", "2" };
+        // Office (Word/Excel) requires this header to open WebDAV documents in edit mode.
+        context.Response.Headers["MS-Author-Via"] = "DAV";
         context.Response.Headers["Allow"] = new StringValues(new[]
         {
             WebDavMethods.Options,
