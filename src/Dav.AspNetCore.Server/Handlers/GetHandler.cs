@@ -109,35 +109,38 @@ internal class GetHandler : RequestHandler
         {
             var range = requestHeaders.Range.Ranges.First();
 
-            var bytesToRead = 0L;
-            if (range.From == null && range.To != null)
+            // Resolve and clamp the range. An unsatisfiable range must not fall through to the
+            // loop below, and the end must never exceed the resource length.
+            if (!ByteRange.TryResolve(stream.Length, range.From, range.To, out var start, out var end))
             {
-                stream.Seek(-range.To.Value, SeekOrigin.End);
-                bytesToRead = range.To.Value;
+                // A 416 response has no body, so the previously set Content-Length must be cleared.
+                context.Response.ContentLength = null;
+                context.Response.Headers.Remove("Content-Length");
+                context.Response.Headers["Content-Range"] = $"bytes */{stream.Length}";
+                context.SetResult(DavStatusCode.RequestedRangeNotSatisfiable);
+                return;
             }
 
-            if (range.From != null && range.To == null)
-            {
-                stream.Seek(range.From.Value, SeekOrigin.Begin);
-                bytesToRead = stream.Length - stream.Position;
-            }
-
-            if (range.From != null && range.To != null)
-            {
-                stream.Seek(range.From.Value, SeekOrigin.Begin);
-                bytesToRead = range.To.Value - range.From.Value;
-            }
+            var bytesToRead = end - start + 1;
+            stream.Seek(start, SeekOrigin.Begin);
             
             context.SetResult(DavStatusCode.PartialContent);
             
             context.Response.ContentLength = bytesToRead;
-            context.Response.Headers["Content-Range"] = $"bytes {range}/{stream.Length}";
+            context.Response.Headers["Content-Range"] = $"bytes {start}-{end}/{stream.Length}";
 
+            var buffer = new byte[64 * 1024];
             while (bytesToRead > 0)
             {
-                var buffer = new byte[Math.Min(bytesToRead, 1024 * 64)];
-                var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-                await context.Response.Body.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                var toRead = (int)Math.Min(bytesToRead, buffer.Length);
+                var bytesRead = await stream.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
+
+                // Reaching the end of the stream early must terminate the loop instead of
+                // spinning forever when the requested range was larger than the content.
+                if (bytesRead <= 0)
+                    break;
+
+                await context.Response.Body.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
                 
                 bytesToRead -= bytesRead;
             }

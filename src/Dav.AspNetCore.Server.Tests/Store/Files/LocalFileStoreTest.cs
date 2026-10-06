@@ -1,4 +1,6 @@
+using Dav.AspNetCore.Server.Store;
 using Dav.AspNetCore.Server.Store.Files;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Dav.AspNetCore.Server.Tests.Store.Files;
@@ -35,5 +37,40 @@ public class LocalFileStoreTest : IDisposable
 
         // assert - the file must contain only the last written content
         Assert.Equal("corto", await System.IO.File.ReadAllTextAsync(filePath));
+    }
+
+    [Fact]
+    public void Constructor_WithoutRootPath_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => new LocalFileStore(new LocalFileStoreOptions()));
+    }
+
+    [Fact]
+    public async Task FileExistsAsync_RootedPath_ThrowsOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var store = new LocalFileStore(new LocalFileStoreOptions { RootPath = rootPath });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            async () => await store.FileExistsAsync(UriHelper.CreateUri("/C:/Windows/win.ini")));
+    }
+
+    [Fact]
+    public async Task OpenFileStreamAsync_UncPath_Throws()
+    {
+        var store = new LocalFileStore(new LocalFileStoreOptions { RootPath = rootPath });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            async () => await store.OpenFileStreamAsync(UriHelper.CreateUri("//server/share/evil.txt"), OpenFileMode.Write));
+    }
+
+    [Fact]
+    public void AddLocalFiles_WithoutRootPath_ThrowsAtRegistration()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<InvalidOperationException>(() => services.AddWebDav(builder => builder.AddLocalFiles()));
     }
 }

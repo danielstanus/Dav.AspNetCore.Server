@@ -8,6 +8,9 @@ WowiCraft/Files/*
 ## Visual Studio Code specific files and folder
 .vscode/
 
+## Internal work-in-progress notes (e.g. security report / to-do). Not part of the repository.
+to-do/
+
 # User-specific files
 *.suo
 *.user
@@ -337,3 +340,7 @@ ASALocalRun/
 # OSX
 .DS_Store
 ._.DS_Store
+
+# Sample runtime data folders (created when running the example app)
+examples/**/davdata/
+examples/**/davmeta/

@@ -36,7 +36,7 @@ jobs:
         run: dotnet test -c Release --no-restore
 
       - name: Create packages
-        run: dotnet pack -c Release --no-restore -o ../artifacts -p:PackageVersion=${{ steps.ver.outputs.version }}
+        run: dotnet pack -c Release --no-restore -o ../artifacts -p:Version=${{ steps.ver.outputs.version }} -p:PackageVersion=${{ steps.ver.outputs.version }}
 
       - name: List artifacts
         working-directory: .

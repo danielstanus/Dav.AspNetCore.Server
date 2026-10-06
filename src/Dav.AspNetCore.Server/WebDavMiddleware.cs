@@ -27,6 +27,22 @@ internal class WebDavMiddleware
     {
         this.webDavOptions = webDavOptions;
         this.logger = logger;
+
+        // Announce the effective security-relevant limits once at startup so operators are aware
+        // of the defaults (uploads are capped at 500 MB and XML bodies at 1 MB unless changed).
+        logger.LogInformation(
+            "WebDAV configured: MaxResourceSizeBytes={MaxResourceSize}, MaxXmlRequestBodyBytes={MaxXmlRequestBodyBytes}, RequiresAuthentication={RequiresAuthentication}.",
+            webDavOptions.MaxResourceSizeBytes is long limit ? $"{limit} bytes" : "unlimited",
+            webDavOptions.MaxXmlRequestBodyBytes,
+            webDavOptions.RequiresAuthentication);
+
+        if (!webDavOptions.RequiresAuthentication)
+            logger.LogWarning(
+                "WebDAV authentication is disabled (WebDavOptions.RequiresAuthentication = false); the endpoint is open. Enable it and use HTTPS.");
+
+        if (webDavOptions.MaxResourceSizeBytes is null)
+            logger.LogWarning(
+                "WebDAV upload size limit is disabled (WebDavOptions.MaxResourceSizeBytes = null); uploads are unbounded.");
     }
 
     /// <summary>
@@ -67,6 +83,13 @@ internal class WebDavMiddleware
         try
         {
             await handler.HandleRequestAsync(context, resourceStore, context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // The store rejected the path because it resolves outside of the configured root.
+            logger.LogWarning($"Forbidden request {context.Request.Method} {context.Request.Path}");
+            if (!context.Response.HasStarted)
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
         }
         catch (Exception e)
         {

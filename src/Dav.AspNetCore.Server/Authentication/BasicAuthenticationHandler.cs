@@ -27,8 +27,16 @@ internal class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthentic
         if (!authorizationHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
             return AuthenticateResult.NoResult();
 
-        var credentialsBase64 = Encoding.UTF8.GetString(
-            Convert.FromBase64String(authorizationHeader.Replace("Basic ", "", StringComparison.OrdinalIgnoreCase)));
+        string credentialsBase64;
+        try
+        {
+            credentialsBase64 = Encoding.UTF8.GetString(
+                Convert.FromBase64String(authorizationHeader.Substring("Basic ".Length).Trim()));
+        }
+        catch (FormatException)
+        {
+            return AuthenticateResult.Fail("Invalid Authorization header format");
+        }
         
         var credentialParts = credentialsBase64.Split(new[] { ':' }, 2);
         
@@ -70,13 +78,18 @@ internal class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthentic
     
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)
     {
-        if (string.IsNullOrWhiteSpace(Options.Realm))
+        var realm = (Options.Realm ?? string.Empty)
+            .Replace("\"", string.Empty)
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty);
+
+        if (string.IsNullOrWhiteSpace(realm))
         {
             Response.Headers["WWW-Authenticate"] = "Basic charset=\"UTF-8\"";
         }
         else
         {
-            Response.Headers["WWW-Authenticate"] = $"Basic realm=\"{Options.Realm}\", charset=\"UTF-8\"";
+            Response.Headers["WWW-Authenticate"] = $"Basic realm=\"{realm}\", charset=\"UTF-8\"";
         }
         return base.HandleChallengeAsync(properties);
     }

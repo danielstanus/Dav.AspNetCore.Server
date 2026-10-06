@@ -46,6 +46,7 @@ public static class WabDavOptionsBuilderExtensions
         var storeOptions = new TOptions();
         if (configureOptions != null)
             configureOptions(storeOptions);
+        storeOptions.Validate();
 
         builder.Services.Replace(ServiceDescriptor.Singleton(storeOptions));
         builder.Services.Replace(ServiceDescriptor.Scoped<IStore, TStore>());
@@ -84,7 +85,8 @@ public static class WabDavOptionsBuilderExtensions
         var storeOptions = new TOptions();
         if (configureOptions != null)
             configureOptions(storeOptions);
-        
+        storeOptions.Validate();
+
         builder.Services.Replace(ServiceDescriptor.Singleton(storeOptions));
         builder.Services.Replace(ServiceDescriptor.Scoped<IPropertyStore, TStore>());
         

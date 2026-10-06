@@ -43,7 +43,13 @@ public enum DavStatusCode
     
     [DavStatusCode("Precondition Failed")]
     PreconditionFailed = StatusCodes.Status412PreconditionFailed,
-    
+
+    [DavStatusCode("Request Entity Too Large")]
+    RequestEntityTooLarge = StatusCodes.Status413PayloadTooLarge,
+
+    [DavStatusCode("Range Not Satisfiable")]
+    RequestedRangeNotSatisfiable = StatusCodes.Status416RangeNotSatisfiable,
+
     [DavStatusCode("Locked")]
     Locked = StatusCodes.Status423Locked,
     

@@ -16,9 +16,14 @@
 [Locking](#locking) •
 [Properties](#properties) •
 [Authentication](#authentication) •
+[Configuration](#configuration) •
 [Office integration](#office-integration) •
 [Hosting on IIS](#hosting-on-iis) •
 [Extensions](#extensions) •
+[Breaking changes](#breaking-changes) •
+[Changelog](CHANGELOG.md) •
+[Security](SECURITY.md) •
+[Contributing](#contributing) •
 [Releases](#releases) •
 [Fork origin](#fork-origin)
 
@@ -78,7 +83,9 @@ app.Map("/dav", davApp =>
 app.Run();
 ```
 
-> Set `builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = null);` to allow uploading large files.
+> `RootPath` is **required**: the store fails at startup if it is not set. WebDAV also caps uploads at
+> **500 MB** and XML request bodies at **1 MB**. See [Configuration](#configuration) for every option and its
+> default, and [Breaking changes](#breaking-changes) when upgrading.
 
 ## Locking
 
@@ -141,6 +148,82 @@ app.Map("/dav", davApp =>
 ```
 
 > Always combine Basic/Digest with **HTTPS**.
+
+## Configuration
+
+Everything is configured through `WebDavOptions` (passed to `AddWebDav`) plus the per-store options.
+These are the defaults and what you normally want to change.
+
+### `WebDavOptions`
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RequiresAuthentication` | `false` | When `false` the endpoint is **open**. Set it to `true` and register an authentication scheme (`UseAuthentication` must run before `UseWebDav`). |
+| `MaxResourceSizeBytes` | `500 MB` | Maximum size of a single uploaded resource (`PUT`); larger uploads return `413`. `null` disables the limit. |
+| `MaxXmlRequestBodyBytes` | `1 MB` | Maximum size of an XML request body (`PROPFIND`, `PROPPATCH`, `LOCK`). Larger bodies are rejected. |
+| `DisallowInfinityDepth` | `false` | Reject `PROPFIND` with `Depth: infinity`. Recommended for large trees. |
+| `MaxLockTimeout` | `null` | Maximum lock timeout. `null` allows non-expiring (`Infinite`) locks; set e.g. `TimeSpan.FromHours(1)`. |
+| `ServerName` / `DisableServerName` | `null` / `false` | `Server` response header. Set `DisableServerName = true` to hide the server name and version. |
+
+### Local file store (`AddLocalFiles`)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RootPath` | *(required)* | Absolute path exposed as the DAV root. **There is no default** — the app fails at startup if it is not set. |
+
+### XML file property store (`AddXmlFilePropertyStore`)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RootPath` | *(required)* | Folder for the `*.xml` sidecar property files. **Do not expose it** through the DAV root or the web. |
+| `AcceptCustomProperties` | `false` | Allow clients to add custom (non-computed) properties, required by Office. |
+
+### Authentication
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RequiresAuthentication` | `false` | See `WebDavOptions` above. |
+| `BasicAuthenticationSchemeOptions.Realm` | `null` | Realm advertised in the `WWW-Authenticate` challenge. |
+| `DigestAuthenticationSchemeOptions.Realm` | `null` | Falls back to the request host when not set. |
+| `DigestAuthenticationSchemeOptions.Algorithm` | `"MD5"` | `MD5` (widest client support, e.g. Office) or `SHA-256`. |
+
+> Always put WebDAV behind **HTTPS** and set `RequiresAuthentication = true`; Basic/Digest without TLS exposes credentials.
+
+### Sizing uploads (Kestrel + WebDAV)
+
+The library caps uploads at `MaxResourceSizeBytes` (500 MB). Kestrel has its own
+`Limits.MaxRequestBodySize` (30 MB by default). To accept files larger than 500 MB, raise **both**:
+
+```csharp
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = null); // or a concrete size
+builder.Services.AddWebDav(dav => dav.MaxResourceSizeBytes = 2L * 1024 * 1024 * 1024); // 2 GB
+```
+
+> The effective limits are written to the log once at startup (`WebDAV configured: MaxResourceSizeBytes=...`),
+> so you can always see whether uploads are capped, and at which size. The upload is streamed to disk, so
+> this is a size limit, not memory usage.
+
+### Complete example
+
+```csharp
+builder.Services.AddWebDav(dav =>
+{
+    dav.RequiresAuthentication = true;
+    dav.DisallowInfinityDepth = true;
+    dav.MaxLockTimeout = TimeSpan.FromHours(1);
+    dav.MaxResourceSizeBytes = 2L * 1024 * 1024 * 1024; // 2 GB
+    dav.MaxXmlRequestBodyBytes = 4 * 1024 * 1024;       // 4 MB
+    dav.DisableServerName = true;
+
+    dav.AddLocalFiles(o => o.RootPath = @"C:\WebDavRoot\");
+    dav.AddInMemoryLocks();
+    dav.AddXmlFilePropertyStore(o =>
+    {
+        o.RootPath = @"C:\WebDavMeta\";
+        o.AcceptCustomProperties = true;
+    });
+});
+```
 
 ## Office integration
 
@@ -207,6 +290,46 @@ Distributed locks and properties on SQL databases (each has its own README and s
 - [SqlServer](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server.Extensions.SqlServer) — `DCS.WebDav.AspNetCore.Server.Extensions.SqlServer`
 - [PostgreSQL](https://www.nuget.org/packages/DCS.WebDav.AspNetCore.Server.Extensions.Npgsql) — `DCS.WebDav.AspNetCore.Server.Extensions.Npgsql`
 
+## Breaking changes
+
+Review these before upgrading from an earlier version of this fork.
+
+### `RootPath` is now required (security fix)
+
+`LocalFileStoreOptions.RootPath` and `XmlFilePropertyStoreOptions.RootPath` no longer default to the root
+of the first fixed drive. You **must** set them explicitly, otherwise the application fails at startup with an
+`InvalidOperationException`. This fixes a path-traversal issue where leaving `RootPath` unset exposed the
+entire file system.
+
+```csharp
+davBuilder.AddLocalFiles(o => o.RootPath = @"C:\WebDavRoot\");
+davBuilder.AddXmlFilePropertyStore(o => o.RootPath = @"C:\WebDavMeta\");
+```
+
+### Upload and XML size limits
+
+- `PUT` is capped at **500 MB** (`WebDavOptions.MaxResourceSizeBytes`); larger uploads return `413`.
+  Raise the value or set it to `null` to restore the previous unlimited behaviour.
+- XML request bodies are capped at **1 MB** (`WebDavOptions.MaxXmlRequestBodyBytes`). Larger bodies are
+  rejected (`PROPFIND` falls back to `allprop`; `PROPPATCH`/`LOCK` return `400`).
+
+### Paths outside the store root are rejected
+
+Requests whose path resolves outside `RootPath` (for example `/C:/...` or `/server/share/...`) now return
+`403` instead of accessing the file system.
+
+### `Range` requests
+
+Unsatisfiable ranges now return `416` with `Content-Range: bytes */<length>`, and the number of bytes
+returned is inclusive as required by RFC 7233 (`bytes=0-9` returns 10 bytes). Previously, a range larger
+than the file could hang the request.
+
+### Digest authentication is stricter
+
+`Digest` now validates the `nonce`, `opaque` and nonce-count (`nc`) and rejects replayed requests, and it
+requires `nc`/`cnonce` when `qop=auth`. Clients that do not send these will no longer authenticate. The
+default algorithm remains `MD5` for compatibility; set `options.Algorithm = "SHA-256"` to require SHA-256.
+
 ## Releases
 
 You can also consume the library **without NuGet.org**: every version is published as a GitHub Release with the `.nupkg` files attached.
@@ -218,12 +341,13 @@ Download the `.nupkg` files and use them as a local feed:
 ```cmd
 :: put the .nupkg files in a folder, e.g. C:\Feeds\dav
 dotnet nuget add source "C:\Feeds\dav" -n dav-release
-dotnet add package DCS.WebDav.AspNetCore.Server --version 1.0.0
+dotnet add package DCS.WebDav.AspNetCore.Server --version 1.1.0
 ```
 
 ## Contributing
 
-Feel free to open issues or submit pull requests.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. By participating you agree to
+the [Code of Conduct](CODE_OF_CONDUCT.md). For security issues, see [SECURITY.md](SECURITY.md).
 
 ## Fork origin
 
@@ -238,3 +362,4 @@ The original copyright and MIT license are preserved. This fork is not affiliate
 - `Lock-Token` response header on `LOCK` (RFC 4918) so Office/Word can edit.
 - `PUT` now truncates the file (previously left trailing bytes when overwriting with shorter content).
 - `MS-Author-Via: DAV` header on `OPTIONS` for Office compatibility.
+- **Security hardening (1.1.0)**: path-traversal fix in the local file and XML property stores, `RootPath` now required, Digest anti-replay (nonce/`nc`/opaque validation), `Range` and XML-body DoS fixes, `403` for paths outside the store root, and configurable upload/XML size limits. See [Breaking changes](#breaking-changes).

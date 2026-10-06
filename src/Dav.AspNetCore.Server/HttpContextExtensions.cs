@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Dav.AspNetCore.Server.Http.Headers;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Dav.AspNetCore.Server;
 
@@ -69,14 +70,64 @@ internal static class HttpContextExtensions
             !context.Request.ContentType.Contains("text/xml"))
             return null;
 
+        var options = context.RequestServices?.GetService<WebDavOptions>();
+        var maxBytes = options?.MaxXmlRequestBodyBytes ?? WebDavOptions.DefaultMaxXmlRequestBodyBytes;
+        if (maxBytes <= 0)
+            maxBytes = WebDavOptions.DefaultMaxXmlRequestBodyBytes;
+
+        if (context.Request.ContentLength is long contentLength && contentLength > maxBytes)
+            return null;
+
+        // Buffer the body with a hard cap so a chunked request cannot exhaust memory either.
+        using var buffer = new MemoryStream();
+        if (!await TryCopyToAsync(context.Request.Body, buffer, maxBytes, cancellationToken))
+            return null;
+
+        buffer.Seek(0, SeekOrigin.Begin);
+
+        // Explicitly harden the parser: no DTD, no external resolver and hard character limits.
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            MaxCharactersInDocument = maxBytes,
+            MaxCharactersFromEntities = maxBytes,
+            IgnoreComments = true,
+            IgnoreProcessingInstructions = true,
+            Async = true
+        };
+
         try
         {
-            return await XDocument.LoadAsync(context.Request.Body, LoadOptions.None, cancellationToken);
+            using var reader = XmlReader.Create(buffer, settings);
+            return await XDocument.LoadAsync(reader, LoadOptions.None, cancellationToken);
         }
         catch (XmlException)
         {
             return null;
         }
+    }
+
+    private static async Task<bool> TryCopyToAsync(
+        Stream source,
+        Stream destination,
+        long maxBytes,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[8192];
+        long total = 0;
+
+        int bytesRead;
+        while ((bytesRead = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+        {
+            total += bytesRead;
+            if (total > maxBytes)
+                return false;
+
+            await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+        }
+
+        return true;
     }
     
     public static Task SendLockedAsync(
