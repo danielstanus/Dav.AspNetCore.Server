@@ -17,6 +17,7 @@
 [Properties](#properties) •
 [Authentication](#authentication) •
 [Office integration](#office-integration) •
+[Hosting on IIS](#hosting-on-iis) •
 [Extensions](#extensions) •
 [Releases](#releases) •
 [Fork origin](#fork-origin)
@@ -154,6 +155,45 @@ Notes:
 - The document URL must be `http`/`https` (prefer **https**).
 - Office may open WebDAV documents in **Protected View** (read-only). For a smooth experience, on the client machines add the host to **Trusted Sites** and enable **"Open documents read-write while browsing"** (deploy via GPO/Intune). See the [documentation](https://learn.microsoft.com/en-us/office/client-developer/office-uri-schemes) for the Office URI scheme.
 - Without a property store, Office `PROPPATCH` of its `Win32*` properties returns `404` — configure one (see [Properties](#properties)).
+
+## Hosting on IIS
+
+IIS ships its **own WebDAV module** that intercepts DAV verbs (`PROPFIND`, `PROPPATCH`, `LOCK`, `UNLOCK`, `MKCOL`, `COPY`, `MOVE`, ...), so a WebDAV app hosted on IIS will return `404`/`405` or misbehave unless that module is removed. You must also explicitly allow the `OPTIONS` verb in Request Filtering.
+
+Add this to the app's `web.config` (or configure the equivalents in IIS Manager):
+
+```xml
+<system.webServer>
+  <security>
+    <requestFiltering>
+      <verbs>
+        <remove verb="OPTIONS" />
+        <add verb="OPTIONS" allowed="true" />
+      </verbs>
+    </requestFiltering>
+  </security>
+  <modules>
+    <!-- Remove the IIS built-in WebDAV so it does not intercept DAV verbs -->
+    <remove name="WebDAVModule" />
+  </modules>
+  <handlers>
+    <remove name="WebDAV" />
+    <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+  </handlers>
+</system.webServer>
+```
+
+Equivalent in IIS Manager:
+
+- **Modules** → remove `WebDAVModule`.
+- **Handler Mappings** → remove `WebDAV`.
+- **Request Filtering → HTTP Verbs** → add `OPTIONS` as allowed.
+- The Application Pool should be **No Managed Code** (Integrated pipeline), as usual for ASP.NET Core.
+- The ASP.NET Core handler must use `verb="*"` so every WebDAV verb reaches your app.
+
+If you host the app under a virtual application/subpath, wrap the block in `<location path="." inheritInChildApplications="false">`.
+
+> Symptom → cause: `405 Method Not Allowed` on `PROPFIND`/`LOCK` is almost always the IIS `WebDAVModule` not being removed; `OPTIONS` returning `404`/`403` is usually Request Filtering.
 
 ## Extensions
 
