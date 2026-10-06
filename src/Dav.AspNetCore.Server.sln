@@ -19,7 +19,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFiles", "SolutionFi
 		..\.github\workflows\test-report.yml = ..\.github\workflows\test-report.yml
 		..\.github\workflows\deploy.yml = ..\.github\workflows\deploy.yml
 		..\.github\workflows\release.yml = ..\.github\workflows\release.yml
-		..\.github\workflows\codeql.yml = ..\.github\workflows\codeql.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dav.AspNetCore.Server.Extensions.Sqlite", "Dav.AspNetCore.Server.Extensions.Sqlite\Dav.AspNetCore.Server.Extensions.Sqlite.csproj", "{BED5ADFD-E70A-4E9A-B7AA-14CCA72FF95A}"
