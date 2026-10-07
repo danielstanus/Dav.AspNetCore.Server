@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-07
+
+### Security
+
+- **Authentication is no longer silently optional outside Development (M-01)**: the host now fails to start
+  when the WebDAV endpoint is open in a non-Development environment unless
+  `WebDavOptions.AllowAnonymousAccess` is explicitly set to `true`. When `RequiresAuthentication = true`,
+  at least one authentication scheme must be registered. In Development the endpoint may stay open over HTTP
+  (a warning is logged).
+- **Malformed headers can no longer cause an HTTP 500 (M-02)**: negative or oversized `Timeout` values are
+  rejected with `400`, `Destination` values such as `urn:...` and paths containing `:`/`|` are handled safely,
+  and malformed Basic/Digest `Authorization` headers are ignored instead of throwing.
+- **The `Server` header no longer includes the assembly version (M-04)**; the default value is
+  `Dav.AspNetCore.Server`.
+- **Lock timeouts default to one hour (M-05)**: `Infinite` and larger requests are clamped to
+  `WebDavOptions.MaxLockTimeout` (1 hour by default) and `InMemoryLockManager` caps the number of locks
+  (`AddInMemoryLocks(maxLocks)`, 10 000 by default), returning `507` when exhausted.
+- **Duplicate properties no longer cause an HTTP 500 (M-06)**: `PROPPATCH`/`PROPFIND` requests that set or
+  request the same property twice are handled (last value wins).
+- **Header and log hardening (L-01, L-05)**: the Basic/Digest challenge `realm` is sanitized so it cannot
+  inject headers, and the request method/path are stripped of control characters before logging.
+- **Lock detection hardened (L-04)**: recursive and case-insensitive (Windows) path matching, trailing
+  slashes normalized, and expired locks are ignored.
+- **Lock owner size bounded (L-07)**: a `LOCK` body with an owner larger than 16 KB returns `400`.
+
+### Changed
+
+- `COPY`/`MOVE` now default to `Overwrite: T` as required by RFC 4918 (they used to return `412` when the
+  destination existed).
+- `GET`/`HEAD` now emit `Last-Modified`, `Content-Language` and a quoted `ETag`; the `Server` header no
+  longer includes the version.
+
+### Fixed
+
+- `Content-Language`/`Last-Modified`/`ETag` were guarded by the content-type check (L-03).
+- Basic/Digest challenge `realm` sanitization (L-01).
+- Log injection via the request method/path (L-05).
+
+### Added
+
+- `WebDavOptions.AllowAnonymousAccess`.
+
 ## [1.1.0] - 2026-10-06
 
 ### Security
@@ -55,6 +97,7 @@ First packaged release of this fork (migration to .NET 10).
 - Basic and Digest authentication.
 - Local file store, in-memory and SQL lock managers, XML and SQL property stores.
 
-[Unreleased]: https://github.com/danielstanus/Dav.AspNetCore.Server/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/danielstanus/Dav.AspNetCore.Server/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.2.0
 [1.1.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.1.0
 [1.0.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.0.0

@@ -32,6 +32,28 @@ jobs:
       - name: Install dependencies
         run: dotnet restore
 
+      # Extrae la seccion del CHANGELOG de esta version para usarla como cuerpo del Release
+      # (fuente unica de verdad). Si no existe la seccion, se usan las notas auto-generadas.
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        shell: bash
+        run: |
+          version="${{ steps.ver.outputs.version }}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
+            capture && $0 ~ "^## \\[" { exit }
+            capture { print }
+          ' ../CHANGELOG.md > ../release-notes.md
+          if [ -s ../release-notes.md ]; then
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+            echo "----- release notes -----"
+            cat ../release-notes.md
+          else
+            rm -f ../release-notes.md
+            echo "has_notes=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No CHANGELOG section found for $version; using generated notes."
+          fi
+
       - name: Test
         run: dotnet test -c Release --no-restore
 
@@ -49,7 +71,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
-          gh release create "$GITHUB_REF_NAME" \
-            artifacts/*.nupkg \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          if [ "${{ steps.notes.outputs.has_notes }}" = "true" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              artifacts/*.nupkg \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              artifacts/*.nupkg \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

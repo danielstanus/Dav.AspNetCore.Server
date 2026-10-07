@@ -123,7 +123,12 @@ A "custom" property is one not computed by the DAV resource itself. With the loc
 ```csharp
 using Dav.AspNetCore.Server.Authentication;
 
-builder.Services.AddAuthentication().AddBasic(options =>
+builder.Services.AddAuthentication(options =>
+{
+    // The WebDAV middleware challenges the default scheme, so it must be configured.
+    options.DefaultScheme = BasicAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = BasicAuthenticationDefaults.AuthenticationScheme;
+}).AddBasic(options =>
 {
     options.Realm = "My WebDAV";
 
@@ -149,6 +154,19 @@ app.Map("/dav", davApp =>
 
 > Always combine Basic/Digest with **HTTPS**.
 
+> **Enabling authentication on an open endpoint:** set `davBuilder.RequiresAuthentication = true`, remove
+> `davBuilder.AllowAnonymousAccess` (the two are exclusive) and call `davApp.UseAuthentication()` before
+> `davApp.UseWebDav()` inside the mapped branch. Configure a default scheme as shown above, otherwise the
+> challenge fails.
+
+> **Startup validation:** in a non-Development environment the host fails to start when the endpoint is open.
+> Enable authentication (`RequiresAuthentication = true` plus a registered scheme) or explicitly set
+> `AllowAnonymousAccess = true`. In **Development** the endpoint may stay open over HTTP (a warning is logged).
+
+> **Authorization:** WebDAV has no built-in per-resource authorization (ACL). Any identity that authenticates
+> can reach the whole tree. If you need per-resource rules, enforce them inside your `IStore` (or in a custom
+> middleware) — see [Extensible](#features).
+
 ## Configuration
 
 Everything is configured through `WebDavOptions` (passed to `AddWebDav`) plus the per-store options.
@@ -158,12 +176,13 @@ These are the defaults and what you normally want to change.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `RequiresAuthentication` | `false` | When `false` the endpoint is **open**. Set it to `true` and register an authentication scheme (`UseAuthentication` must run before `UseWebDav`). |
+| `RequiresAuthentication` | `false` | When `true`, at least one authentication scheme must be registered or the host fails to start. When `false` the endpoint is open: allowed automatically only in **Development**; in any other environment the host fails to start unless `AllowAnonymousAccess = true`. |
+| `AllowAnonymousAccess` | `false` | Explicitly allow an open (unauthenticated) endpoint in any environment. Cannot be combined with `RequiresAuthentication = true`. |
 | `MaxResourceSizeBytes` | `500 MB` | Maximum size of a single uploaded resource (`PUT`); larger uploads return `413`. `null` disables the limit. |
 | `MaxXmlRequestBodyBytes` | `1 MB` | Maximum size of an XML request body (`PROPFIND`, `PROPPATCH`, `LOCK`). Larger bodies are rejected. |
 | `DisallowInfinityDepth` | `false` | Reject `PROPFIND` with `Depth: infinity`. Recommended for large trees. |
-| `MaxLockTimeout` | `null` | Maximum lock timeout. `null` allows non-expiring (`Infinite`) locks; set e.g. `TimeSpan.FromHours(1)`. |
-| `ServerName` / `DisableServerName` | `null` / `false` | `Server` response header. Set `DisableServerName = true` to hide the server name and version. |
+| `MaxLockTimeout` | `1 hour` | Maximum lock timeout. Requests for `Infinite` or a longer timeout are clamped to this value. Set to `null` to allow non-expiring locks. |
+| `ServerName` / `DisableServerName` | `null` / `false` | `Server` response header. The default name does not include the version. Set `DisableServerName = true` to remove the header entirely. |
 
 ### Local file store (`AddLocalFiles`)
 
@@ -330,6 +349,24 @@ than the file could hang the request.
 requires `nc`/`cnonce` when `qop=auth`. Clients that do not send these will no longer authenticate. The
 default algorithm remains `MD5` for compatibility; set `options.Algorithm = "SHA-256"` to require SHA-256.
 
+### Anonymous access must be explicit outside Development
+
+The host now fails to start when authentication is disabled in a non-Development environment. Enable
+authentication (`RequiresAuthentication = true` with a registered scheme) or explicitly set
+`WebDavOptions.AllowAnonymousAccess = true`. In Development the endpoint may stay open (over HTTP).
+
+### Lock timeout defaults to one hour
+
+`WebDavOptions.MaxLockTimeout` now defaults to **1 hour**. Requests for `Infinite` or a longer timeout are
+clamped, so a lock can no longer block a resource forever. Set `MaxLockTimeout = null` to restore
+non-expiring locks. `AddInMemoryLocks(maxLocks)` also caps the number of locks (10 000 by default) and
+returns `507` when exhausted.
+
+### `Server` header no longer includes the version
+
+The default `Server` header is `Dav.AspNetCore.Server` (it used to append the assembly version). Set
+`DisableServerName = true` to remove the header entirely.
+
 ## Releases
 
 You can also consume the library **without NuGet.org**: every version is published as a GitHub Release with the `.nupkg` files attached.
@@ -341,7 +378,7 @@ Download the `.nupkg` files and use them as a local feed:
 ```cmd
 :: put the .nupkg files in a folder, e.g. C:\Feeds\dav
 dotnet nuget add source "C:\Feeds\dav" -n dav-release
-dotnet add package DCS.WebDav.AspNetCore.Server --version 1.1.0
+dotnet add package DCS.WebDav.AspNetCore.Server --version 1.2.0
 ```
 
 ## Contributing
@@ -362,4 +399,5 @@ The original copyright and MIT license are preserved. This fork is not affiliate
 - `Lock-Token` response header on `LOCK` (RFC 4918) so Office/Word can edit.
 - `PUT` now truncates the file (previously left trailing bytes when overwriting with shorter content).
 - `MS-Author-Via: DAV` header on `OPTIONS` for Office compatibility.
-- **Security hardening (1.1.0)**: path-traversal fix in the local file and XML property stores, `RootPath` now required, Digest anti-replay (nonce/`nc`/opaque validation), `Range` and XML-body DoS fixes, `403` for paths outside the store root, and configurable upload/XML size limits. See [Breaking changes](#breaking-changes).
+- **Security hardening (1.1.0)**: path-traversal fix in the local file and XML property stores, `RootPath` now required, Digest anti-replay (nonce/`nc`/opaque validation), `Range` and XML-body DoS fixes, `403` for paths outside the store root, and configurable upload/XML size limits.
+- **Security hardening (1.2.0)**: authentication must be explicit outside Development (`AllowAnonymousAccess` otherwise), malformed headers can no longer cause `500`, the `Server` header no longer leaks the version, lock timeouts default to one hour with a lock cap, `COPY`/`MOVE` follow RFC 4918 `Overwrite`, `GET`/`HEAD` emit `Last-Modified`/`Content-Language`/`ETag`, and logs are sanitized. See [Breaking changes](#breaking-changes).

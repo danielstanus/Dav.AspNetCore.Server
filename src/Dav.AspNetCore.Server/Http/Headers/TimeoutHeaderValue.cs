@@ -1,9 +1,16 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace Dav.AspNetCore.Server.Http.Headers;
 
 public class TimeoutHeaderValue
 {
+    /// <summary>
+    /// The largest timeout accepted, in seconds (100 years). Larger values would overflow
+    /// <see cref="TimeSpan.FromSeconds(double)"/> and turn a malformed header into a 500.
+    /// </summary>
+    private const long MaxTimeoutSeconds = 100L * 365 * 24 * 60 * 60;
+
     /// <summary>
     /// Initializes a new <see cref="TimeoutHeaderValue"/> class.
     /// </summary>
@@ -50,15 +57,22 @@ public class TimeoutHeaderValue
 
         foreach (var value in values)
         {
-            if (value.Equals("Infinite", StringComparison.CurrentCultureIgnoreCase))
+            if (value.Equals("Infinite", StringComparison.OrdinalIgnoreCase))
             {
                 timeouts.Add(TimeSpan.Zero);
                 continue;
             }
 
-            if (value.StartsWith("Second-", StringComparison.InvariantCultureIgnoreCase))
+            if (value.StartsWith("Second-", StringComparison.OrdinalIgnoreCase))
             {
-                if (long.TryParse(value.Replace("Second-", string.Empty, StringComparison.InvariantCultureIgnoreCase), out var seconds))
+                // Reject negative and oversized values instead of throwing (they used to surface as HTTP 500).
+                if (long.TryParse(
+                        value.Substring("Second-".Length),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out var seconds) &&
+                    seconds >= 0 &&
+                    seconds <= MaxTimeoutSeconds)
                 {
                     timeouts.Add(TimeSpan.FromSeconds(seconds));
                 }

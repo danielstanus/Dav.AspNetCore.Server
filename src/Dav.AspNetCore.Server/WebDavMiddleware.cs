@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace Dav.AspNetCore.Server;
 
@@ -12,7 +13,9 @@ internal class WebDavMiddleware
     private readonly WebDavOptions webDavOptions;
     private readonly ILogger<WebDavMiddleware> logger;
 
-    private static readonly string DefaultServerName = $"Dav.AspNetCore.Server/{typeof(WebDavMiddleware).Assembly.GetName().Version}";
+    // The default name intentionally omits the assembly version so the response cannot be used
+    // to fingerprint the exact build (CWE-200). Set DisableServerName = true to remove the header.
+    private static readonly string DefaultServerName = "Dav.AspNetCore.Server";
 
     /// <summary>
     /// Initializes a new <see cref="WebDavMiddleware"/> class.
@@ -30,15 +33,12 @@ internal class WebDavMiddleware
 
         // Announce the effective security-relevant limits once at startup so operators are aware
         // of the defaults (uploads are capped at 500 MB and XML bodies at 1 MB unless changed).
+        // The authentication state is validated and logged by WebDavStartupValidation.
         logger.LogInformation(
             "WebDAV configured: MaxResourceSizeBytes={MaxResourceSize}, MaxXmlRequestBodyBytes={MaxXmlRequestBodyBytes}, RequiresAuthentication={RequiresAuthentication}.",
             webDavOptions.MaxResourceSizeBytes is long limit ? $"{limit} bytes" : "unlimited",
             webDavOptions.MaxXmlRequestBodyBytes,
             webDavOptions.RequiresAuthentication);
-
-        if (!webDavOptions.RequiresAuthentication)
-            logger.LogWarning(
-                "WebDAV authentication is disabled (WebDavOptions.RequiresAuthentication = false); the endpoint is open. Enable it and use HTTPS.");
 
         if (webDavOptions.MaxResourceSizeBytes is null)
             logger.LogWarning(
@@ -53,6 +53,11 @@ internal class WebDavMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var middlewareStart = DateTime.UtcNow;
+
+        // The method and path are attacker-controlled: strip control characters so they cannot be
+        // used to forge log lines (CWE-117).
+        var method = SanitizeForLog(context.Request.Method);
+        var path = SanitizeForLog(context.Request.Path.Value);
 
         if (webDavOptions.RequiresAuthentication &&
             context.Request.Method != WebDavMethods.Options &&
@@ -73,12 +78,12 @@ internal class WebDavMiddleware
         
         if (!RequestHandlerFactory.TryGetRequestHandler(context.Request.Method, out var handler))
         {
-            logger.LogInformation($"Request {context.Request.Method} is not implemented.");
+            logger.LogInformation("Request {Method} is not implemented.", method);
             context.Response.StatusCode = StatusCodes.Status501NotImplemented;
             return;
         }
         
-        logger.LogInformation($"Request starting {context.Request.Method} {context.Request.Path}");
+        logger.LogInformation("Request starting {Method} {Path}", method, path);
 
         try
         {
@@ -87,18 +92,30 @@ internal class WebDavMiddleware
         catch (UnauthorizedAccessException)
         {
             // The store rejected the path because it resolves outside of the configured root.
-            logger.LogWarning($"Forbidden request {context.Request.Method} {context.Request.Path}");
+            logger.LogWarning("Forbidden request {Method} {Path}", method, path);
             if (!context.Response.HasStarted)
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
         }
         catch (Exception e)
         {
-            logger.LogError(e, $"Unexpected error while handling request {context.Request.Method} {context.Request.Path} {(DateTime.UtcNow - middlewareStart).TotalMilliseconds:F0}ms");
+            logger.LogError(e, "Unexpected error while handling request {Method} {Path} {ElapsedMs}ms", method, path, (DateTime.UtcNow - middlewareStart).TotalMilliseconds);
             
             if (!context.Response.HasStarted)
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         }
         
-        logger.LogInformation($"Request finished {context.Request.Method} {context.Request.Path} {context.Response.StatusCode} {(DateTime.UtcNow - middlewareStart).TotalMilliseconds:F0}ms");
+        logger.LogInformation("Request finished {Method} {Path} {StatusCode} {ElapsedMs}ms", method, path, context.Response.StatusCode, (DateTime.UtcNow - middlewareStart).TotalMilliseconds);
+    }
+
+    internal static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+            builder.Append(char.IsControl(character) ? '?' : character);
+
+        return builder.ToString();
     }
 }

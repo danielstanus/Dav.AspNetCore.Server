@@ -25,7 +25,22 @@ internal static class UriHelper
         else if (!value.StartsWith('/'))
             value = $"/{value}";
 
-        return new Uri($"file://{value}");
+        try
+        {
+            return new Uri($"file://{value}");
+        }
+        catch (UriFormatException)
+        {
+            // Some values (e.g. a colon in the first segment: "file:///a:b") are rejected by Uri as a
+            // non-rooted DOS path. Percent-encode the offending characters and retry so a malformed
+            // path cannot turn into an unhandled exception.
+            var escaped = value.Replace(":", "%3A").Replace("|", "%7C");
+            if (Uri.TryCreate($"file://{escaped}", UriKind.Absolute, out var fallback))
+                return fallback;
+
+            // Last resort: a path that cannot exist, so callers get a clean 404 instead of an exception.
+            return new Uri($"file:///{Guid.NewGuid():N}");
+        }
     }
 
     public static Uri GetParent(this Uri uri)

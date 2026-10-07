@@ -308,4 +308,147 @@ public class InMemoryLockManagerTest
         Assert.Contains(LockType.Exclusive, result);
         Assert.Contains(LockType.Shared, result);
     }
+
+    [Fact]
+    public async Task LockAsync_MaxLocksReached_ReturnsInsufficientStorage()
+    {
+        // arrange
+        var memoryLockManager = new InMemoryLockManager(Array.Empty<ResourceLock>(), maxLocks: 1);
+
+        var first = await memoryLockManager.LockAsync(
+            UriHelper.CreateUri("/one.txt"),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            false,
+            TimeSpan.FromMinutes(5));
+        Assert.Equal(DavStatusCode.Ok, first.StatusCode);
+
+        // act
+        var second = await memoryLockManager.LockAsync(
+            UriHelper.CreateUri("/two.txt"),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            false,
+            TimeSpan.FromMinutes(5));
+
+        // assert
+        Assert.Equal(DavStatusCode.InsufficientStorage, second.StatusCode);
+        Assert.Null(second.ResourceLock);
+    }
+
+    [Fact]
+    public void Constructor_InvalidMaxLocks_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new InMemoryLockManager(Array.Empty<ResourceLock>(), maxLocks: 0));
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_RecursiveParentLock_IsReturned()
+    {
+        var rootLock = CreateLock("/", recursive: true);
+        var memoryLockManager = new InMemoryLockManager(new[] { rootLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a/b.txt"));
+
+        Assert.Single(result);
+        Assert.Contains(rootLock, result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_RecursiveParentLock_IsNotDuplicated()
+    {
+        var rootLock = CreateLock("/", recursive: true);
+        var memoryLockManager = new InMemoryLockManager(new[] { rootLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a/b.txt"));
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_NonRecursiveParentLock_IsNotReturned()
+    {
+        var rootLock = CreateLock("/", recursive: false);
+        var memoryLockManager = new InMemoryLockManager(new[] { rootLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a/b.txt"));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_ExactLock_IsReturned()
+    {
+        var itemLock = CreateLock("/a/b.txt", recursive: false);
+        var memoryLockManager = new InMemoryLockManager(new[] { itemLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a/b.txt"));
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_RecursiveLock_IsNotReturnedForSibling()
+    {
+        var itemLock = CreateLock("/a", recursive: true);
+        var memoryLockManager = new InMemoryLockManager(new[] { itemLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/b"));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_TrailingSlash_IsNormalized()
+    {
+        var itemLock = CreateLock("/a/b", recursive: false);
+        var memoryLockManager = new InMemoryLockManager(new[] { itemLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a/b/"));
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_ExpiredLock_IsNotReturned()
+    {
+        var expiredLock = new ResourceLock(
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri("/a"),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            false,
+            TimeSpan.FromMinutes(5),
+            DateTime.UtcNow - TimeSpan.FromMinutes(10));
+        var memoryLockManager = new InMemoryLockManager(new[] { expiredLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/a"));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetLocksAsync_IsCaseInsensitiveOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var itemLock = CreateLock("/File.txt", recursive: false);
+        var memoryLockManager = new InMemoryLockManager(new[] { itemLock });
+
+        var result = await memoryLockManager.GetLocksAsync(UriHelper.CreateUri("/file.txt"));
+
+        Assert.Single(result);
+    }
+
+    private static ResourceLock CreateLock(string path, bool recursive)
+        => new(
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri(path),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            recursive,
+            TimeSpan.FromMinutes(5),
+            DateTime.UtcNow);
 }

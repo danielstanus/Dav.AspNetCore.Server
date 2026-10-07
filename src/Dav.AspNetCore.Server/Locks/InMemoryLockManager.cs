@@ -7,6 +7,7 @@ namespace Dav.AspNetCore.Server.Locks;
 public sealed class InMemoryLockManager : ILockManager
 {
     private readonly ConcurrentDictionary<Uri, ResourceLock> locks = new();
+    private readonly int maxLocks;
     
     private static readonly ValueTask<IReadOnlyCollection<LockType>> SupportedLocks = new(new List<LockType>
     {
@@ -18,9 +19,14 @@ public sealed class InMemoryLockManager : ILockManager
     /// Initializes a new <see cref="InMemoryLockManager"/> class.
     /// </summary>
     /// <param name="locks">The pre population locks.</param>
-    public InMemoryLockManager(IEnumerable<ResourceLock> locks)
+    /// <param name="maxLocks">The maximum number of locks that may be held at once.</param>
+    public InMemoryLockManager(IEnumerable<ResourceLock> locks, int maxLocks = 10_000)
     {
         ArgumentNullException.ThrowIfNull(locks, nameof(locks));
+        if (maxLocks <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxLocks), "The maximum number of locks must be greater than zero.");
+
+        this.maxLocks = maxLocks;
         foreach (var resourceLock in locks)
         {
             this.locks[resourceLock.Id] = resourceLock;
@@ -58,6 +64,10 @@ public sealed class InMemoryLockManager : ILockManager
              lockType == LockType.Shared) ||
             activeLocks.Count == 0)
         {
+            // Bound the total number of locks so a client cannot exhaust memory by creating locks forever.
+            if (locks.Count >= maxLocks)
+                return new LockResult(DavStatusCode.InsufficientStorage);
+
             var newLock = new ResourceLock(
                 new Uri($"urn:uuid:{Guid.NewGuid():D}"),
                 uri,
@@ -91,7 +101,7 @@ public sealed class InMemoryLockManager : ILockManager
         ArgumentNullException.ThrowIfNull(uri, nameof(uri));
         ArgumentNullException.ThrowIfNull(token, nameof(token));
         
-        var activeLock = locks.Values.FirstOrDefault(x => x.Uri == uri && x.Id == token && x.IsActive);
+        var activeLock = locks.Values.FirstOrDefault(x => IsSameUri(x.Uri, uri) && x.Id == token && x.IsActive);
         if (activeLock == null)
             return new ValueTask<LockResult>(new LockResult(DavStatusCode.PreconditionFailed));
 
@@ -124,7 +134,7 @@ public sealed class InMemoryLockManager : ILockManager
         ArgumentNullException.ThrowIfNull(uri, nameof(uri));
         ArgumentNullException.ThrowIfNull(token, nameof(token));
         
-        var activeLock = locks.Values.FirstOrDefault(x => x.Uri == uri && x.Id == token && x.IsActive);
+        var activeLock = locks.Values.FirstOrDefault(x => IsSameUri(x.Uri, uri) && x.Id == token && x.IsActive);
         if (activeLock == null)
             return new ValueTask<DavStatusCode>(DavStatusCode.Conflict);
 
@@ -145,24 +155,84 @@ public sealed class InMemoryLockManager : ILockManager
     {
         ArgumentNullException.ThrowIfNull(uri, nameof(uri));
         
-        var allActiveLocks = new List<ResourceLock>();
-        var pathParts = uri.LocalPath.Split('/');
-        if (uri.AbsoluteUri.Equals("/"))
-            pathParts = new[] { "" };
-            
-        var currentPath = string.Empty;
-            
-        for (var i = 0; i < pathParts.Length; i++)
+        var targetPath = NormalizePath(uri.LocalPath);
+
+        // Build the ancestor paths of the target, including the target itself
+        // ("/a/b" -> "/", "/a", "/a/b"). A recursive lock on any ancestor applies to the target.
+        var ancestors = new List<string> { "/" };
+        if (targetPath != "/")
         {
-            currentPath += currentPath.Equals("/") ? pathParts[i] : $"/{pathParts[i]}";
-            var activeLocks = locks.Values
-                .Where(x => x.Uri.LocalPath == currentPath && x.IsActive && (x.Recursive || i == pathParts.Length - 1))
-                .ToList();
-                
-            allActiveLocks.AddRange(activeLocks);
+            var index = 1;
+            while (index <= targetPath.Length)
+            {
+                var next = targetPath.IndexOf('/', index);
+                if (next < 0)
+                {
+                    ancestors.Add(targetPath);
+                    break;
+                }
+
+                ancestors.Add(targetPath.Substring(0, next));
+                index = next + 1;
+            }
+        }
+
+        var allActiveLocks = new List<ResourceLock>();
+        foreach (var resourceLock in locks.Values)
+        {
+            if (!resourceLock.IsActive)
+                continue;
+
+            var lockPath = NormalizePath(resourceLock.Uri.LocalPath);
+            foreach (var ancestor in ancestors)
+            {
+                if (!string.Equals(lockPath, ancestor, PathComparison))
+                    continue;
+
+                // A recursive lock applies to the whole subtree; a non-recursive one only to itself.
+                if (resourceLock.Recursive || string.Equals(ancestor, targetPath, PathComparison))
+                    allActiveLocks.Add(resourceLock);
+
+                break;
+            }
         }
 
         return ValueTask.FromResult<IReadOnlyCollection<ResourceLock>>(allActiveLocks);
+    }
+
+    /// <summary>
+    /// The path comparison to use. Windows file paths are case-insensitive, so a lock created for
+    /// "/File.txt" must also protect "/file.txt".
+    /// </summary>
+    private static StringComparison PathComparison
+        => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    /// <summary>
+    /// Normalizes a store path so "/a/b/", "a/b" and "/a/b" compare equal, and the root is "/".
+    /// </summary>
+    private static string NormalizePath(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return "/";
+
+        if (!path.StartsWith('/'))
+            path = $"/{path}";
+
+        path = path.TrimEnd('/');
+        return path.Length == 0 ? "/" : path;
+    }
+
+    /// <summary>
+    /// Compares two store uris using the platform path comparison (case-insensitive on Windows).
+    /// </summary>
+    private static bool IsSameUri(Uri left, Uri right)
+    {
+        ArgumentNullException.ThrowIfNull(left, nameof(left));
+        ArgumentNullException.ThrowIfNull(right, nameof(right));
+
+        return string.Equals(left.Scheme, right.Scheme, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(left.Host, right.Host, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(NormalizePath(left.LocalPath), NormalizePath(right.LocalPath), PathComparison);
     }
 
     /// <summary>

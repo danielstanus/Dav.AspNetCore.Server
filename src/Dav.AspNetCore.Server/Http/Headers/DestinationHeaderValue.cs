@@ -52,11 +52,11 @@ public class DestinationHeaderValue
             // Absolute uri, keep the path only so it matches the store resource uris.
             input = absoluteUri.LocalPath;
         }
-        else if (!input.StartsWith("/", StringComparison.Ordinal))
-        {
-            // Absolute path without a leading slash, e.g. "test1".
+
+        // Ensure the value is rooted before it reaches PathString (some absolute uris such as
+        // "urn:uuid:..." have a LocalPath that does not start with '/' and would otherwise throw).
+        if (!input.StartsWith("/", StringComparison.Ordinal))
             input = $"/{input}";
-        }
 
         var path = new PathString(input);
         if (!path.HasValue)

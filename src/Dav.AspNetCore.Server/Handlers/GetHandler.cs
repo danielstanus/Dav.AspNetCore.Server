@@ -25,16 +25,19 @@ internal class GetHandler : RequestHandler
             Context.Response.Headers["Content-Type"] = contentType;
         
         var contentLanguage = await GetNonExpensivePropertyAsync(Item, XmlNames.GetContentLanguage, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(contentType))
+        if (!string.IsNullOrWhiteSpace(contentLanguage))
             Context.Response.Headers["Content-Language"] = contentLanguage;
         
         var lastModified = await GetNonExpensivePropertyAsync(Item, XmlNames.GetLastModified, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(contentType))
+        if (!string.IsNullOrWhiteSpace(lastModified))
             Context.Response.Headers["Last-Modified"] = lastModified;
         
-        var etag = await GetNonExpensivePropertyAsync(Item, XmlNames.GetEtag, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(contentType))
-            Context.Response.Headers["ETag"] = etag;
+        // The ETag is a content hash (marked as expensive), so it is fetched explicitly here and
+        // quoted as required by RFC 7232. Conditional requests use the same cached value.
+        var etagResult = await PropertyManager.GetPropertyAsync(Item, XmlNames.GetEtag, cancellationToken);
+        var etag = etagResult.Value as string;
+        if (!string.IsNullOrWhiteSpace(etag))
+            Context.Response.Headers["ETag"] = $"\"{etag}\"";
         
         var contentLength = await GetNonExpensivePropertyAsync(Item, XmlNames.GetContentLength, cancellationToken);
         if (!string.IsNullOrWhiteSpace(contentLength))

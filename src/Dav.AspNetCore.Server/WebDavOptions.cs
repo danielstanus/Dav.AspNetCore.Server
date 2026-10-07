@@ -39,12 +39,30 @@ public class WebDavOptions
     public bool DisableServerName { get; set; }
     
     /// <summary>
-    /// Gets or sets the maximum lock timeout.
+    /// Gets or sets the maximum lock timeout. Requests for "Infinite" or for a longer timeout are
+    /// clamped to this value. Defaults to one hour so locks cannot block a resource forever.
+    /// Set to <see langword="null"/> to allow non-expiring locks again.
     /// </summary>
-    public TimeSpan? MaxLockTimeout { get; set; } = null;
+    public TimeSpan? MaxLockTimeout { get; set; } = TimeSpan.FromHours(1);
     
     /// <summary>
     /// A value indicating whether web dav requires authentication.
     /// </summary>
+    /// <remarks>
+    /// When <see langword="true"/> at least one authentication scheme must be registered, otherwise
+    /// the host fails to start. When <see langword="false"/> the endpoint is open: that is only allowed
+    /// automatically in the Development environment, or in any environment when
+    /// <see cref="AllowAnonymousAccess"/> is explicitly set to <see langword="true"/>.
+    /// </remarks>
     public bool RequiresAuthentication { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether anonymous (unauthenticated) access is explicitly allowed.
+    /// </summary>
+    /// <remarks>
+    /// Anonymous access is always allowed in the Development environment (a warning is logged). In any
+    /// other environment the host fails to start unless this is set to <see langword="true"/>, so an open
+    /// endpoint must be an explicit decision and not an accidental default.
+    /// </remarks>
+    public bool AllowAnonymousAccess { get; set; }
 }

@@ -2,6 +2,7 @@ using Dav.AspNetCore.Server.Locks;
 using Dav.AspNetCore.Server.Store.Properties;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Dav.AspNetCore.Server;
 
@@ -28,6 +29,7 @@ public static class WebDavServiceCollectionExtensions
         services.TryAddSingleton<WebDavOptions>(builder);
         services.TryAddScoped<IPropertyManager, PropertyManager>();
         services.TryAddSingleton<ILockManager>(new InMemoryLockManager(Array.Empty<ResourceLock>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, WebDavStartupValidation>());
 
         return services;
     }

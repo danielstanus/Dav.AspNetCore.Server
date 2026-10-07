@@ -12,6 +12,9 @@ public class DestinationHeaderValueTest
     [InlineData("/test1", "/test1")]
     [InlineData("test1", "/test1")]
     [InlineData("http://localhost:500/test1", "/test1")]
+    [InlineData("a:b", "/a:b")]
+    [InlineData("urn:uuid:abc", "/uuid:abc")]
+    [InlineData("mailto:a@b.com", "/")]
     public void TryParse(string? input, string? uriString)
     {
         // act

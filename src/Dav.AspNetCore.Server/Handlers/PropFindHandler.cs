@@ -142,7 +142,7 @@ internal class PropFindHandler : RequestHandler
             try
             {
                 var propertyValue = await PropertyManager.GetPropertyAsync(item, propertyName, cancellationToken);
-                propertyValues.Add(propertyName, propertyValue);
+                propertyValues[propertyName] = propertyValue;
             }
             catch
             {

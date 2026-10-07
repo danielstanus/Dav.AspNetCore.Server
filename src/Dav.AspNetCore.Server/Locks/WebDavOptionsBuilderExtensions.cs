@@ -9,12 +9,13 @@ public static class WebDavOptionsBuilderExtensions
     /// Adds in memory locking.
     /// </summary>
     /// <param name="builder">The web dav options builder.</param>
+    /// <param name="maxLocks">The maximum number of locks that may be held at once.</param>
     /// <returns>The web dav options builder.</returns>
-    public static WebDavOptionsBuilder AddInMemoryLocks(this WebDavOptionsBuilder builder)
+    public static WebDavOptionsBuilder AddInMemoryLocks(this WebDavOptionsBuilder builder, int maxLocks = 10_000)
     {
         ArgumentNullException.ThrowIfNull(builder, nameof(builder));
         
-        builder.Services.Replace(ServiceDescriptor.Singleton<ILockManager>(new InMemoryLockManager(Array.Empty<ResourceLock>())));
+        builder.Services.Replace(ServiceDescriptor.Singleton<ILockManager>(new InMemoryLockManager(Array.Empty<ResourceLock>(), maxLocks)));
 
         return builder;
     }

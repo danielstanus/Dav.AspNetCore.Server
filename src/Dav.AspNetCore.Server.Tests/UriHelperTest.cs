@@ -38,4 +38,17 @@ public class UriHelperTest
         // assert
         Assert.Equal(UriHelper.CreateUri(expectedUriString).LocalPath, result.LocalPath);
     }
+
+    [Theory]
+    [InlineData("/a:b", "/a:b")]
+    [InlineData("/a|b", "/a|b")]
+    [InlineData("a:b", "/a:b")]
+    public void CreateUri_InvalidPathCharacters_DoesNotThrow(string input, string expectedLocalPath)
+    {
+        // act
+        var uri = UriHelper.CreateUri(input);
+
+        // assert
+        Assert.Equal(expectedLocalPath, uri.LocalPath);
+    }
 }

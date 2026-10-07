@@ -9,6 +9,9 @@ public class TimeoutHeaderValueTest
     [InlineData(null)]
     [InlineData("")]
     [InlineData("Minute-60")]
+    [InlineData("Second--5")]
+    [InlineData("Second-9999999999999999999")]
+    [InlineData("Second-99999999999999")]
     public void TryParseInvalid(string? input)
     {
         // act

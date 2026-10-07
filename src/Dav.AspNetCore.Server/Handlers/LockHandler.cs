@@ -7,6 +7,12 @@ namespace Dav.AspNetCore.Server.Handlers;
 internal class LockHandler : RequestHandler
 {
     /// <summary>
+    /// The maximum size of a lock owner payload. The lock body itself is already bounded by
+    /// <see cref="WebDavOptions.MaxXmlRequestBodyBytes"/>; this keeps an individual lock small too.
+    /// </summary>
+    private const int MaxLockOwnerLength = 16 * 1024;
+
+    /// <summary>
     /// Handles the web dav request async.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -21,12 +27,7 @@ internal class LockHandler : RequestHandler
             return;
         }
 
-        var timeout = WebDavHeaders.Timeouts
-            .OrderByDescending(x => x.TotalSeconds)
-            .First(x => x <= (Options.MaxLockTimeout ?? TimeSpan.MaxValue));
-
-        if (WebDavHeaders.Timeouts.Any(x => x == TimeSpan.Zero) && Options.MaxLockTimeout == null)
-            timeout = TimeSpan.Zero;
+        var timeout = LockTimeout.Resolve(WebDavHeaders.Timeouts, Options.MaxLockTimeout);
 
         var depth = WebDavHeaders.Depth ?? Depth.Infinity;
         if (depth == Depth.One)
@@ -97,6 +98,13 @@ internal class LockHandler : RequestHandler
                 owner == null ||
                 write == null ||
                 (exclusive == null && shared == null))
+            {
+                Context.SetResult(DavStatusCode.BadRequest);
+                return;
+            }
+
+            // Bound the owner so a single lock cannot store an arbitrarily large payload.
+            if (owner.ToString(SaveOptions.DisableFormatting).Length > MaxLockOwnerLength)
             {
                 Context.SetResult(DavStatusCode.BadRequest);
                 return;

@@ -44,7 +44,7 @@ internal class CopyHandler : RequestHandler
                 destination = UriHelper.CreateUri(destination.LocalPath.Substring(Context.Request.PathBase.Value.Length));
         }
         
-        var overwrite = WebDavHeaders.Overwrite ?? false;
+        var overwrite = WebDavHeaders.Overwrite ?? true;
         var destinationParentUri = destination.GetParent();
 
         var destinationCollection = await Store.GetCollectionAsync(destinationParentUri, cancellationToken);
