@@ -45,14 +45,12 @@ internal static class DigestNonceStore
     /// </summary>
     /// <param name="nonce">The nonce sent by the client.</param>
     /// <param name="opaque">The opaque value sent by the client.</param>
-    /// <param name="hasNonceCount">Whether the client supplied a nonce-count (qop=auth).</param>
-    /// <param name="nonceCount">The parsed nonce-count.</param>
+    /// <param name="nonceCount">The parsed nonce-count (qop=auth always requires one).</param>
     /// <param name="error">The failure reason, if any.</param>
     /// <returns>True when the nonce is valid and not replayed.</returns>
     public static bool TryValidate(
         string nonce,
         string opaque,
-        bool hasNonceCount,
         long nonceCount,
         out string? error)
     {
@@ -77,25 +75,22 @@ internal static class DigestNonceStore
             return false;
         }
 
-        if (hasNonceCount)
+        while (true)
         {
-            while (true)
+            if (nonceCount <= entry.NonceCount)
             {
-                if (nonceCount <= entry.NonceCount)
-                {
-                    error = "Replayed nonce count.";
-                    return false;
-                }
+                error = "Replayed nonce count.";
+                return false;
+            }
 
-                var updated = entry with { NonceCount = nonceCount };
-                if (Entries.TryUpdate(nonce, updated, entry))
-                    break;
+            var updated = entry with { NonceCount = nonceCount };
+            if (Entries.TryUpdate(nonce, updated, entry))
+                break;
 
-                if (!Entries.TryGetValue(nonce, out entry))
-                {
-                    error = "Stale nonce.";
-                    return false;
-                }
+            if (!Entries.TryGetValue(nonce, out entry))
+            {
+                error = "Stale nonce.";
+                return false;
             }
         }
 

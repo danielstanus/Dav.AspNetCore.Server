@@ -426,11 +426,9 @@ public class RequestHandlerTest
         httpContext.Setup(s => s.Request.Headers).Returns(headers);
         httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
 
-        if (matchToken)
-        {
-            httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Get);
-        }
-        else
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Get);
+
+        if (!matchToken)
         {
             httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status412PreconditionFailed);
         }
@@ -491,6 +489,7 @@ public class RequestHandlerTest
         var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
         httpContext.Setup(s => s.Request.Path).Returns(new PathString("/"));
         httpContext.Setup(s => s.Request.Headers).Returns(headers);
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Get);
         httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
         httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status412PreconditionFailed);
 
@@ -1072,6 +1071,414 @@ public class RequestHandlerTest
 
         if (propertyStore != null)
             propertyStore.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_PutNewItemInDepthZeroLockedCollection_WithoutToken_ReturnsLocked()
+    {
+        // arrange
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+        var parentLock = CreateResourceLock("/dir", recursive: false);
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/dir/new.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+        lockManager.Setup(s => s.GetLocksAsync(
+                UriHelper.NormalizeLockUri(UriHelper.CreateUri("/dir/new.txt").GetParent()),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { parentLock });
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/dir/new.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(new HeaderDictionary());
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Put);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+        SetupLockedResponse(httpContext);
+
+        var parentUri = UriHelper.CreateUri("/dir/new.txt").GetParent();
+        var collection = new Mock<IStoreCollection>();
+        collection.Setup(s => s.Uri).Returns(UriHelper.NormalizeLockUri(parentUri));
+        collection.Setup(s => s.GetItemAsync("new.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IStoreItem?)null);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(parentUri, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collection.Object);
+
+        var requestHandler = new RequestHandlerImpl();
+
+        // act
+        await requestHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        Assert.False(requestHandler.OverrideCalled);
+
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        collection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_PutNewItemInDepthZeroLockedCollection_WithToken_Continues()
+    {
+        // arrange
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+        var parentLock = CreateResourceLock("/dir", recursive: false);
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/dir/new.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+        lockManager.Setup(s => s.GetLocksAsync(
+                UriHelper.NormalizeLockUri(UriHelper.CreateUri("/dir/new.txt").GetParent()),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { parentLock });
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var headers = new HeaderDictionary
+        {
+            ["If"] = $"(<{parentLock.Id.AbsoluteUri}>)"
+        };
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/dir/new.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(headers);
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Put);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+
+        var parentUri = UriHelper.CreateUri("/dir/new.txt").GetParent();
+        var collection = new Mock<IStoreCollection>();
+        collection.Setup(s => s.Uri).Returns(UriHelper.NormalizeLockUri(parentUri));
+        collection.Setup(s => s.GetItemAsync("new.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IStoreItem?)null);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(parentUri, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collection.Object);
+
+        var requestHandler = new RequestHandlerImpl();
+
+        // act
+        await requestHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        Assert.True(requestHandler.OverrideCalled);
+
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        collection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_DeleteItemInDepthZeroLockedCollection_WithoutToken_ReturnsLocked()
+    {
+        // arrange
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+        var parentLock = CreateResourceLock("/dir", recursive: false);
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/dir/file.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+        lockManager.Setup(s => s.GetLocksAsync(
+                UriHelper.NormalizeLockUri(UriHelper.CreateUri("/dir/file.txt").GetParent()),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { parentLock });
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/dir/file.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(new HeaderDictionary());
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Delete);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+        SetupLockedResponse(httpContext);
+
+        var item = new Mock<IStoreItem>();
+        var parentUri = UriHelper.CreateUri("/dir/file.txt").GetParent();
+        var collection = new Mock<IStoreCollection>();
+        collection.Setup(s => s.Uri).Returns(UriHelper.NormalizeLockUri(parentUri));
+        collection.Setup(s => s.GetItemAsync("file.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(item.Object);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(parentUri, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collection.Object);
+
+        var requestHandler = new RequestHandlerImpl();
+
+        // act
+        await requestHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        Assert.False(requestHandler.OverrideCalled);
+
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        collection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_PropPatchInDepthZeroLockedCollection_Continues()
+    {
+        // arrange
+        // A non-recursive collection lock protects the membership, not the properties of its members,
+        // so PROPPATCH must not query the parent collection lock (RFC 4918, section 7.4).
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/dir/file.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/dir/file.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(new HeaderDictionary());
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.PropPatch);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+
+        var item = new Mock<IStoreItem>();
+        var parentUri = UriHelper.CreateUri("/dir/file.txt").GetParent();
+        var collection = new Mock<IStoreCollection>();
+        collection.Setup(s => s.Uri).Returns(UriHelper.NormalizeLockUri(parentUri));
+        collection.Setup(s => s.GetItemAsync("file.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(item.Object);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(parentUri, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collection.Object);
+
+        var requestHandler = new RequestHandlerImpl();
+
+        // act
+        await requestHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        Assert.True(requestHandler.OverrideCalled);
+
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        collection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_CopyIntoDepthZeroLockedCollection_WithoutToken_ReturnsLocked()
+    {
+        // arrange
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+        var destinationLock = CreateResourceLock("/dir", recursive: false);
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/src.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+        lockManager.Setup(s => s.GetLocksAsync(
+                UriHelper.NormalizeLockUri(UriHelper.CreateUri("/dir/dest.txt").GetParent()),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { destinationLock });
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var headers = new HeaderDictionary
+        {
+            ["Destination"] = "http://localhost/dir/dest.txt"
+        };
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/src.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(headers);
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Copy);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+        SetupLockedResponse(httpContext);
+
+        var sourceItem = new Mock<IStoreItem>();
+        var sourceCollection = new Mock<IStoreCollection>();
+        sourceCollection.Setup(s => s.Uri).Returns(UriHelper.CreateUri("/"));
+        sourceCollection.Setup(s => s.GetItemAsync("src.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sourceItem.Object);
+
+        var destinationParentUri = UriHelper.CreateUri("/dir/dest.txt").GetParent();
+        var destinationCollection = new Mock<IStoreCollection>();
+        destinationCollection.Setup(s => s.Uri).Returns(destinationParentUri);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(UriHelper.CreateUri("/"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sourceCollection.Object);
+        store.Setup(s => s.GetItemAsync(destinationParentUri, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(destinationCollection.Object);
+
+        var copyHandler = new CopyHandler();
+
+        // act
+        await copyHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        sourceCollection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_CopyDestinationOutsidePathBase_ReturnsBadGateway()
+    {
+        // arrange
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/src.txt"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var headers = new HeaderDictionary
+        {
+            // Destination of another prefix (or another server): must not be truncated,
+            // mapped into the store or allowed to throw (RFC 4918: 502 Bad Gateway).
+            ["Destination"] = "/"
+        };
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/src.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(headers);
+        httpContext.Setup(s => s.Request.Method).Returns(WebDavMethods.Copy);
+        httpContext.Setup(s => s.Request.PathBase).Returns(new PathString("/dav"));
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+        httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status502BadGateway);
+
+        var sourceItem = new Mock<IStoreItem>();
+        var sourceCollection = new Mock<IStoreCollection>();
+        sourceCollection.Setup(s => s.Uri).Returns(UriHelper.CreateUri("/"));
+        sourceCollection.Setup(s => s.GetItemAsync("src.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sourceItem.Object);
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(UriHelper.CreateUri("/"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sourceCollection.Object);
+
+        var copyHandler = new CopyHandler();
+
+        // act
+        await copyHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        sourceCollection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_IfTagWithMissingCollection_ReturnsPreConditionFailed()
+    {
+        // arrange: a tagged If condition whose parent collection does not exist used to throw
+        // a KeyNotFoundException (HTTP 500) instead of failing the condition (HTTP 412).
+        var requestServices = new ServiceCollection();
+        var options = new WebDavOptions();
+
+        var lockManager = new Mock<ILockManager>(MockBehavior.Strict);
+        lockManager.Setup(s => s.GetLocksAsync(UriHelper.CreateUri("/missing/x"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceLock>());
+
+        var propertyManager = new Mock<IPropertyManager>(MockBehavior.Strict);
+
+        requestServices.AddSingleton(options);
+        requestServices.AddSingleton(lockManager.Object);
+        requestServices.AddSingleton(propertyManager.Object);
+
+        var headers = new HeaderDictionary
+        {
+            ["If"] = "</missing/x> (<urn:uuid:00000000-0000-0000-0000-000000000000>)"
+        };
+
+        var httpContext = new Mock<HttpContext>(MockBehavior.Strict);
+        httpContext.Setup(s => s.Request.Path).Returns(new PathString("/test.txt"));
+        httpContext.Setup(s => s.Request.Headers).Returns(headers);
+        httpContext.Setup(s => s.RequestServices).Returns(requestServices.BuildServiceProvider);
+        httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status412PreconditionFailed);
+
+        var collection = new Mock<IStoreCollection>();
+        collection.Setup(s => s.Uri).Returns(UriHelper.CreateUri("/"));
+
+        var store = new Mock<IStore>(MockBehavior.Strict);
+        store.Setup(s => s.GetItemAsync(UriHelper.CreateUri("/"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collection.Object);
+        store.Setup(s => s.GetItemAsync(UriHelper.CreateUri("/missing/"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IStoreCollection?)null);
+
+        var requestHandler = new RequestHandlerImpl();
+
+        // act
+        await requestHandler.HandleRequestAsync(httpContext.Object, store.Object);
+
+        // assert
+        Assert.False(requestHandler.OverrideCalled);
+
+        lockManager.VerifyAll();
+        httpContext.VerifyAll();
+        collection.VerifyAll();
+        store.VerifyAll();
+        propertyManager.VerifyAll();
+    }
+
+    private static ResourceLock CreateResourceLock(string path, bool recursive)
+        => new(
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri(path),
+            LockType.Exclusive,
+            new XElement(XName.Get("owner")),
+            recursive,
+            TimeSpan.Zero,
+            DateTime.Now);
+
+    private static void SetupLockedResponse(Mock<HttpContext> httpContext)
+    {
+        httpContext.Setup(s => s.Response.Body).Returns(new MemoryStream());
+        httpContext.Setup(s => s.Request.PathBase).Returns(PathString.Empty);
+        httpContext.SetupSet(s => s.Response.ContentType = "application/xml; charset=\"utf-8\"");
+        httpContext.SetupSet(s => s.Response.ContentLength = It.IsAny<long>());
+        httpContext.SetupSet(s => s.Response.StatusCode = StatusCodes.Status423Locked);
     }
 
     private static T GetProtectedProperty<T>(RequestHandler handler, string propertyName)

@@ -44,6 +44,14 @@ public class WebDavOptions
     /// Set to <see langword="null"/> to allow non-expiring locks again.
     /// </summary>
     public TimeSpan? MaxLockTimeout { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Gets or sets the Content-Security-Policy header sent with every response. Defaults to
+    /// <c>sandbox</c>, which stops an uploaded HTML file from running scripts or reaching the origin
+    /// of the application (stored XSS mitigation). Set to <see langword="null"/> or an empty string
+    /// to remove the header.
+    /// </summary>
+    public string? ContentSecurityPolicy { get; set; } = "sandbox";
     
     /// <summary>
     /// A value indicating whether web dav requires authentication.

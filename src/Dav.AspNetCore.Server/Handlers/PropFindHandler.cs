@@ -32,7 +32,7 @@ internal class PropFindHandler : RequestHandler
             }
 
             var depth = headers.Depth ?? (Options.DisallowInfinityDepth ? Depth.One : Depth.Infinity);
-            await AddItemsRecursive(collection, depth, 0, items, cancellationToken);
+            await AddItemsRecursive(collection, depth, items, cancellationToken);
         }
         else
         {
@@ -79,30 +79,64 @@ internal class PropFindHandler : RequestHandler
         await Context.WriteDocumentAsync(DavStatusCode.MultiStatus, document, cancellationToken);
     }
 
-    private static async Task AddItemsRecursive(
+    /// <summary>
+    /// Adds the collection and, depending on the requested depth, its members to the result.
+    /// </summary>
+    /// <remarks>
+    /// The traversal uses an explicit work stack instead of recursion: a very deep tree (or a link
+    /// cycle created outside the service) could otherwise overflow the stack. The result order is
+    /// unchanged: the collection, then every sub collection subtree in order, then the remaining items.
+    /// </remarks>
+    internal static async Task AddItemsRecursive(
         IStoreCollection collection, 
         Depth depth,
-        int iteration,
         ICollection<IStoreItem> results,
         CancellationToken cancellationToken = default)
     {
-        results.Add(collection);
-        
-        if (iteration >= (int)depth && depth != Depth.Infinity)
-            return;
-        
-        var items = await collection.GetItemsAsync(cancellationToken);
-        var collections = items.OfType<IStoreCollection>().ToList();
-        foreach (var subCollection in collections)
+        var maxIteration = depth == Depth.Infinity ? int.MaxValue : (int)depth;
+
+        var work = new Stack<WorkItem>();
+        work.Push(new CollectionWork(collection, 0));
+
+        while (work.Count > 0)
         {
-            await AddItemsRecursive(subCollection, depth, iteration + 1, results, cancellationToken);
-        }
-        
-        foreach (var item in items.Except(collections))
-        {
-            results.Add(item);
+            switch (work.Pop())
+            {
+                case CollectionWork collectionWork:
+                {
+                    results.Add(collectionWork.Collection);
+
+                    if (collectionWork.Iteration >= maxIteration)
+                        break;
+
+                    var items = await collectionWork.Collection.GetItemsAsync(cancellationToken);
+                    var subCollections = items.OfType<IStoreCollection>().ToArray();
+                    var remainingItems = items.Where(x => x is not IStoreCollection).ToArray();
+
+                    // The stack is LIFO: push the remaining items first so every sub collection
+                    // subtree is visited before them, and push the sub collections in reverse order.
+                    work.Push(new ItemsWork(remainingItems));
+                    for (var i = subCollections.Length - 1; i >= 0; i--)
+                        work.Push(new CollectionWork(subCollections[i], collectionWork.Iteration + 1));
+
+                    break;
+                }
+                case ItemsWork itemsWork:
+                {
+                    foreach (var item in itemsWork.Items)
+                        results.Add(item);
+
+                    break;
+                }
+            }
         }
     }
+
+    private abstract record WorkItem;
+
+    private sealed record CollectionWork(IStoreCollection Collection, int Iteration) : WorkItem;
+
+    private sealed record ItemsWork(IReadOnlyCollection<IStoreItem> Items) : WorkItem;
 
     private async Task<Dictionary<XName, PropertyResult>> GetPropertiesAsync(
         IStoreItem item,

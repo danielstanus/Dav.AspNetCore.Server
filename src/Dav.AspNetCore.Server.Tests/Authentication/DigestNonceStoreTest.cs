@@ -10,16 +10,16 @@ public class DigestNonceStoreTest
     {
         var (nonce, opaque) = DigestNonceStore.Create();
 
-        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, true, 1, out _));
+        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, 1, out _));
     }
 
     [Fact]
     public void TryValidate_ReplayedNonceCount_ReturnsFalse()
     {
         var (nonce, opaque) = DigestNonceStore.Create();
-        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, true, 1, out _));
+        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, 1, out _));
 
-        Assert.False(DigestNonceStore.TryValidate(nonce, opaque, true, 1, out var error));
+        Assert.False(DigestNonceStore.TryValidate(nonce, opaque, 1, out var error));
         Assert.NotNull(error);
     }
 
@@ -28,14 +28,14 @@ public class DigestNonceStoreTest
     {
         var (nonce, opaque) = DigestNonceStore.Create();
 
-        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, true, 1, out _));
-        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, true, 2, out _));
+        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, 1, out _));
+        Assert.True(DigestNonceStore.TryValidate(nonce, opaque, 2, out _));
     }
 
     [Fact]
     public void TryValidate_UnknownNonce_ReturnsFalse()
     {
-        Assert.False(DigestNonceStore.TryValidate("00000000000000000000000000000000", "opaque", false, 0, out _));
+        Assert.False(DigestNonceStore.TryValidate("00000000000000000000000000000000", "opaque", 1, out _));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class DigestNonceStoreTest
     {
         var (nonce, _) = DigestNonceStore.Create();
 
-        Assert.False(DigestNonceStore.TryValidate(nonce, "wrong", false, 0, out _));
+        Assert.False(DigestNonceStore.TryValidate(nonce, "wrong", 1, out _));
     }
 
     [Fact]

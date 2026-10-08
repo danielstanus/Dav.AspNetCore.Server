@@ -51,8 +51,10 @@ public class XmlFilePropertyStore : IPropertyStore
             var fileInfo = new FileInfo(xmlFilePath);
             if (fileInfo.Directory?.Exists == false)
                 fileInfo.Directory.Create();
-            
-            await using var fileStream = File.OpenWrite(xmlFilePath);
+
+            // FileMode.Create truncates the file: File.OpenWrite keeps the trailing bytes of a
+            // longer previous document, which leaves invalid XML behind after a shorter rewrite.
+            await using var fileStream = new FileStream(xmlFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
             await document.SaveAsync(fileStream, SaveOptions.None, cancellationToken);
         }
     }
@@ -175,15 +177,20 @@ public class XmlFilePropertyStore : IPropertyStore
         {
             var document = await XDocument.LoadAsync(fileStream, LoadOptions.None, cancellationToken);
             var propertyStore = document.Element(PropertyStore);
-            var properties = propertyStore?.Elements(Property).Select(x => x.Elements().First());
-            if (properties == null)
+            if (propertyStore == null)
             {
                 propertyCache[item] = new Dictionary<XName, PropertyData>();
                 return propertyDataList;
             }
 
-            foreach (var property in properties)
+            foreach (var propertyElement in propertyStore.Elements(Property))
             {
+                // A property element without a value ("<name/>") is valid and must not break the
+                // whole file; it round-trips as a property with a null value.
+                var property = propertyElement.Elements().FirstOrDefault();
+                if (property == null)
+                    continue;
+
                 object? propertyValue = null;
                 if (property.FirstNode != null)
                 {
@@ -202,9 +209,11 @@ public class XmlFilePropertyStore : IPropertyStore
                 propertyDataList.Add(propertyData);
             }
         }
-        catch
+        catch (XmlException)
         {
-            propertyCache[item] = new Dictionary<XName, PropertyData>();
+            // A file that is not valid XML (for example written by an older version that did not
+            // truncate) is treated as empty, but the result is not cached so a later write cannot
+            // silently persist the empty state over recoverable data.
             return propertyDataList;
         }
         finally

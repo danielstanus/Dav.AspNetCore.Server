@@ -8,8 +8,8 @@
 
     <PropertyGroup>
         <PackageId>DCS.WebDav.AspNetCore.Server.Extensions.Sqlite</PackageId>
-        <Version>1.2.0</Version>
-        <PackageVersion>1.2.0</PackageVersion>
+        <Version>1.3.0</Version>
+        <PackageVersion>1.3.0</PackageVersion>
         <Authors>Daniel Calin Stanus</Authors>
         <Company>Daniel Calin Stanus</Company>
         <PackageTags>WebDav;AspNetCore;Asp;Dav;AspNetCore WebDav;AspNetCore Dav;Asp WebDav;Asp Dav;Sqlite;SQL;ADO</PackageTags>

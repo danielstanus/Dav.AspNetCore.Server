@@ -100,7 +100,7 @@ public class SqliteLockManager : SqlLockManager
         long totalSeconds)
     {
         var command = connection.CreateCommand();
-        command.CommandText = $"SELECT Id FROM {GetTableId()} WHERE Id = @Id AND Uri = @Uri AND (Issued + Timeout > @TotalSeconds OR Timeout = 0) LIMIT 1";
+        command.CommandText = $"SELECT * FROM {GetTableId()} WHERE Id = @Id AND Uri = @Uri AND (Issued + Timeout > @TotalSeconds OR Timeout = 0) LIMIT 1";
         command.Parameters.Add(new SqliteParameter("@Id", id));
         command.Parameters.Add(new SqliteParameter("@Uri", uri));
         command.Parameters.Add(new SqliteParameter("@TotalSeconds", totalSeconds));

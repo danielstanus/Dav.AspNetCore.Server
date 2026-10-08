@@ -40,6 +40,9 @@ public enum DavStatusCode
     
     [DavStatusCode("Conflict")]
     Conflict = StatusCodes.Status409Conflict,
+
+    [DavStatusCode("Bad Gateway")]
+    BadGateway = StatusCodes.Status502BadGateway,
     
     [DavStatusCode("Precondition Failed")]
     PreconditionFailed = StatusCodes.Status412PreconditionFailed,

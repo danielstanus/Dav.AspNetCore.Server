@@ -100,7 +100,7 @@ public class SqlServerLockManager : SqlLockManager
         long totalSeconds)
     {
         var command = connection.CreateCommand();
-        command.CommandText = $"SELECT TOP 1 Id FROM {GetTableId()} WHERE Id = @Id AND Uri = @Uri AND (Issued + Timeout > @TotalSeconds OR Timeout = 0)";
+        command.CommandText = $"SELECT TOP 1 * FROM {GetTableId()} WHERE Id = @Id AND Uri = @Uri AND (Issued + Timeout > @TotalSeconds OR Timeout = 0)";
         command.Parameters.Add(new SqlParameter("@Id", id));
         command.Parameters.Add(new SqlParameter("@Uri", uri));
         command.Parameters.Add(new SqlParameter("@TotalSeconds", totalSeconds));

@@ -59,6 +59,12 @@ internal class WebDavMiddleware
         var method = SanitizeForLog(context.Request.Method);
         var path = SanitizeForLog(context.Request.Path.Value);
 
+        // Uploaded content is served with its own content type. Forbid MIME sniffing and sandbox the
+        // response so a malicious HTML/XML upload cannot script the application origin (CWE-79).
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        if (!string.IsNullOrEmpty(webDavOptions.ContentSecurityPolicy))
+            context.Response.Headers["Content-Security-Policy"] = webDavOptions.ContentSecurityPolicy;
+
         if (webDavOptions.RequiresAuthentication &&
             context.Request.Method != WebDavMethods.Options &&
             context.User.Identity?.IsAuthenticated != true)

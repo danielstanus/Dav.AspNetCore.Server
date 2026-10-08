@@ -28,13 +28,13 @@ internal class MoveHandler : RequestHandler
             return;
         }
 
-        var destination = WebDavHeaders.Destination;
-        if (!string.IsNullOrWhiteSpace(Context.Request.PathBase))
+        if (!UriHelper.TryRemovePathBase(Context.Request.PathBase.Value, WebDavHeaders.Destination!, out var destination))
         {
-            if (Context.Request.PathBase.HasValue)
-                destination = UriHelper.CreateUri(destination.LocalPath.Substring(Context.Request.PathBase.Value.Length));
+            // A destination outside of this WebDAV mount is a foreign destination (RFC 4918: 502 Bad Gateway).
+            Context.SetResult(DavStatusCode.BadGateway);
+            return;
         }
-        
+
         var overwrite = WebDavHeaders.Overwrite ?? true;
         var destinationParentUri = destination.GetParent();
 
@@ -42,6 +42,17 @@ internal class MoveHandler : RequestHandler
         if (destinationCollection == null)
         {
             Context.SetResult(DavStatusCode.Conflict);
+            return;
+        }
+
+        // Adding or replacing a member changes the membership of the destination collection, so a
+        // write lock on the collection requires its lock token (RFC 4918, section 7.4). The lock uri
+        // is normalized because parent uris keep a trailing slash that ADO lock managers do not match.
+        var destinationLockUri = UriHelper.NormalizeLockUri(destinationParentUri);
+        if (await CheckLockedAsync(destinationLockUri, cancellationToken) &&
+            !await ValidateTokenAsync(destinationLockUri, cancellationToken))
+        {
+            await Context.SendLockedAsync(destinationLockUri, cancellationToken);
             return;
         }
 

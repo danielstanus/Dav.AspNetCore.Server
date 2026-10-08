@@ -121,7 +121,23 @@ internal abstract class RequestHandler : IRequestHandler
                     await Context.SendLockedAsync(requestUri, cancellationToken);
                     return;
                 }
-            }   
+            }
+
+            // A write lock on a collection, recursive or not, protects the membership of the
+            // collection: adding or removing a member requires the collection lock token
+            // (RFC 4918, section 7.4).
+            var collectionUri = UriHelper.NormalizeLockUri(requestUri.GetParent());
+            if (collectionUri != requestUri &&
+                ChangesCollectionMembership() &&
+                await CheckLockedAsync(collectionUri, cancellationToken))
+            {
+                var tokenSubmitted = await ValidateTokenAsync(collectionUri, cancellationToken);
+                if (!tokenSubmitted)
+                {
+                    await Context.SendLockedAsync(collectionUri, cancellationToken);
+                    return;
+                }
+            }
         }
 
         await HandleRequestAsync(cancellationToken);
@@ -202,10 +218,21 @@ internal abstract class RequestHandler : IRequestHandler
             }
         }
 
-        var isLocked = await CheckLockedAsync(item.Uri, cancellationToken);
-        if (isLocked)
+        // Removing an item changes the membership of its parent collection, so a write lock on the
+        // collection protects the deletion even when the lock is not recursive (RFC 4918, section 7.4).
+        var itemLockUri = UriHelper.NormalizeLockUri(item.Uri);
+        var collectionLockUri = UriHelper.NormalizeLockUri(collection.Uri);
+        var isItemLocked = await CheckLockedAsync(itemLockUri, cancellationToken);
+        var isCollectionLocked = await CheckLockedAsync(collectionLockUri, cancellationToken);
+
+        if (isItemLocked || isCollectionLocked)
         {
-            var tokenSubmitted = await ValidateTokenAsync(item.Uri, cancellationToken);
+            var tokenSubmitted = true;
+            if (isItemLocked)
+                tokenSubmitted = await ValidateTokenAsync(itemLockUri, cancellationToken);
+            if (tokenSubmitted && isCollectionLocked)
+                tokenSubmitted = await ValidateTokenAsync(collectionLockUri, cancellationToken);
+
             if (!tokenSubmitted)
             {
                 error = true;
@@ -261,7 +288,9 @@ internal abstract class RequestHandler : IRequestHandler
                     }
                 }
 
-                var item = items[resourceUri];
+                // The tagged resource may not exist (or its parent collection may be missing):
+                // a missing item must fail the condition, not throw a KeyNotFoundException (500).
+                items.TryGetValue(resourceUri, out var item);
                 if (condition.Tags.Length > 0)
                 {
                     string? itemEtag = null;
@@ -287,7 +316,22 @@ internal abstract class RequestHandler : IRequestHandler
                 {
                     await EnsureLocksAsync(resourceUri, cancellationToken);
 
-                    var activeLocks = lockCache[resourceUri];
+                    IEnumerable<ResourceLock> activeLocks = lockCache[resourceUri];
+
+                    // An untagged state token submitted for a request that changes the membership of
+                    // a collection may refer to a lock on the parent collection (RFC 4918, section 7.4).
+                    if (condition.Uri == null && ChangesCollectionMembership())
+                    {
+                        var collectionUri = UriHelper.NormalizeLockUri(resourceUri.GetParent());
+                        if (collectionUri != resourceUri)
+                        {
+                            await EnsureLocksAsync(collectionUri, cancellationToken);
+                            activeLocks = activeLocks
+                                .Concat(lockCache[collectionUri])
+                                .DistinctBy(x => x.Id);
+                        }
+                    }
+
                     foreach (var stateToken in condition.Tokens)
                     {
                         var conditionResult = stateToken.Negate
@@ -418,6 +462,21 @@ internal abstract class RequestHandler : IRequestHandler
     {
         if (!lockCache.ContainsKey(uri))
             lockCache[uri] = await LockManager.GetLocksAsync(uri, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the current request creates or removes a member of its parent
+    /// collection. A write lock on a collection protects its membership, recursive or not
+    /// (RFC 4918, section 7.4), so those requests must also validate the collection lock.
+    /// </summary>
+    private bool ChangesCollectionMembership()
+    {
+        return Context.Request.Method switch
+        {
+            WebDavMethods.Put or WebDavMethods.MkCol => Item == null,
+            WebDavMethods.Delete or WebDavMethods.Move => Item != null,
+            _ => false
+        };
     }
 
     /// <summary>

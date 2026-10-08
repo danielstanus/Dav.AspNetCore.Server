@@ -113,23 +113,35 @@ public abstract class SqlLockManager : ILockManager, IDisposable
             token.AbsoluteUri,
             uri.LocalPath,
             (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds);
-        
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (await reader.ReadAsync(cancellationToken))
-        {
-            var id = reader.GetString("Id");
-            await using var updateCommand = GetRefreshCommand(
-                connection.Value,
-                id,
-                (long)timeout.TotalSeconds,
-                (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds);
 
-            var affectedRows = await updateCommand.ExecuteNonQueryAsync(cancellationToken);
-            if (affectedRows > 0)
-                return new LockResult(DavStatusCode.Ok);
+        ResourceLock? activeLock;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            activeLock = await reader.ReadAsync(cancellationToken)
+                ? new ResourceLock(
+                    new Uri(reader.GetString("Id")),
+                    CreateResourceUri(reader.GetString("Uri")),
+                    (LockType)reader.GetInt32("LockType"),
+                    XElement.Parse(reader.GetString("Owner")),
+                    reader.GetBoolean("Recursive"),
+                    timeout,
+                    DateTime.UtcNow)
+                : null;
         }
-        
-        return new LockResult(DavStatusCode.PreconditionFailed);
+
+        if (activeLock == null)
+            return new LockResult(DavStatusCode.PreconditionFailed);
+
+        await using var updateCommand = GetRefreshCommand(
+            connection.Value,
+            activeLock.Id.AbsoluteUri,
+            (long)timeout.TotalSeconds,
+            (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds);
+
+        var affectedRows = await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+        return affectedRows > 0
+            ? new LockResult(DavStatusCode.Ok, activeLock)
+            : new LockResult(DavStatusCode.PreconditionFailed);
     }
 
     /// <summary>
@@ -199,7 +211,7 @@ public abstract class SqlLockManager : ILockManager, IDisposable
         {
             var resourceLock = new ResourceLock(
                 new Uri(reader.GetString("Id")),
-                new Uri(reader.GetString("Id")),
+                CreateResourceUri(reader.GetString("Uri")),
                 (LockType)reader.GetInt32("LockType"),
                 XElement.Parse(reader.GetString("Owner")),
                 reader.GetBoolean("Recursive"),
@@ -350,5 +362,30 @@ public abstract class SqlLockManager : ILockManager, IDisposable
         return string.IsNullOrWhiteSpace(options.Schema) 
             ? $"{options.Table}" 
             : $"{options.Schema}.{options.Table}";
+    }
+
+    /// <summary>
+    /// Rebuilds the resource uri from the local path stored in the database.
+    /// </summary>
+    /// <remarks>
+    /// The store works with file style uris ("/dir/file.txt"). The <see cref="Uri"/> constructor
+    /// interprets some of them as a non-rooted DOS path on Windows (for example a colon in the first
+    /// segment) and throws, so the offending characters are percent-encoded before retrying. This
+    /// mirrors UriHelper.CreateUri in the core package, which is internal to that assembly.
+    /// </remarks>
+    private static Uri CreateResourceUri(string localPath)
+    {
+        if (!localPath.StartsWith('/'))
+            localPath = $"/{localPath}";
+
+        try
+        {
+            return new Uri($"file://{localPath}");
+        }
+        catch (UriFormatException)
+        {
+            var escaped = localPath.Replace(":", "%3A").Replace("|", "%7C");
+            return new Uri($"file://{escaped}");
+        }
     }
 }

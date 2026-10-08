@@ -25,6 +25,8 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Dav.AspNetCore.Server\Dav.AspNetCore.Server.csproj" />
+      <ProjectReference Include="..\Dav.AspNetCore.Server.Extensions.Ado\Dav.AspNetCore.Server.Extensions.Ado.csproj" />
+      <ProjectReference Include="..\Dav.AspNetCore.Server.Extensions.Sqlite\Dav.AspNetCore.Server.Extensions.Sqlite.csproj" />
     </ItemGroup>
 
 </Project>

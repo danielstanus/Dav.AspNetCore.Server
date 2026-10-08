@@ -59,6 +59,79 @@ public class StorePathTest
         Assert.Throws<UnauthorizedAccessException>(() => StorePath.Resolve(root, "/file.txt:stream"));
     }
 
+    [Theory]
+    [InlineData("a*b")]
+    [InlineData("a?b")]
+    [InlineData("a<b")]
+    [InlineData("a>b")]
+    [InlineData("a\"b")]
+    [InlineData("/dir/a*b.txt")]
+    public void Resolve_InvalidWindowsPathCharacters_ThrowUnauthorizedAccess(string relativePath)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        Assert.Throws<UnauthorizedAccessException>(() => StorePath.Resolve(root, relativePath));
+    }
+
+    [Fact]
+    public void Resolve_SymlinkPointingOutsideRoot_Throws()
+    {
+        var linkRoot = Path.Combine(Path.GetTempPath(), $"dav-link-root-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"dav-link-outside-{Guid.NewGuid():N}");
+        System.IO.Directory.CreateDirectory(linkRoot);
+        System.IO.Directory.CreateDirectory(outside);
+
+        try
+        {
+            if (!TryCreateDirectoryLink(Path.Combine(linkRoot, "link"), outside))
+                return;
+
+            Assert.Throws<UnauthorizedAccessException>(() => StorePath.Resolve(linkRoot, "/link/file.txt"));
+        }
+        finally
+        {
+            TryDeleteDirectory(linkRoot);
+            TryDeleteDirectory(outside);
+        }
+    }
+
+    [Fact]
+    public void Resolve_SymlinkPointingInsideRoot_IsAllowed()
+    {
+        var linkRoot = Path.Combine(Path.GetTempPath(), $"dav-link-root-{Guid.NewGuid():N}");
+        System.IO.Directory.CreateDirectory(Path.Combine(linkRoot, "target"));
+
+        try
+        {
+            if (!TryCreateDirectoryLink(Path.Combine(linkRoot, "link"), Path.Combine(linkRoot, "target")))
+                return;
+
+            var path = StorePath.Resolve(linkRoot, "/link/file.txt");
+
+            Assert.Equal(Path.Combine(linkRoot, "link", "file.txt"), path);
+        }
+        finally
+        {
+            TryDeleteDirectory(linkRoot);
+        }
+    }
+
+    private static bool TryCreateDirectoryLink(string linkPath, string targetPath)
+        => TestDirectoryLink.TryCreate(linkPath, targetPath);
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (System.IO.Directory.Exists(path))
+                System.IO.Directory.Delete(path, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     [Fact]
     public void Resolve_EmptyRoot_Throws()
     {

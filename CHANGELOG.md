@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-08
+
+### Security
+
+- **Collection write locks now protect membership (N-01)**: a `Depth: 0` write lock on a collection is
+  enforced for `PUT`/`MKCOL` of a new member, `DELETE`/`MOVE` of an existing one, recursive deletes and
+  `COPY`/`MOVE` destinations; the submitted lock token is also evaluated against the parent collection
+  (`If: (<collection-token>)`). Lock lookups use a normalized URI so the ADO lock managers (SQLite,
+  SQL Server, PostgreSQL) match the same paths as the in-memory one.
+- **Expired in-memory locks are purged (N-02)**: `InMemoryLockManager` no longer counts expired locks
+  towards its limit, which used to make every `LOCK` return `507` permanently once the cap was reached.
+- **Foreign `Destination` values can no longer cause a 500 or escape the path base (N-03)**: `COPY`/`MOVE`
+  validate the destination against the request path base and answer `502 Bad Gateway` for destinations
+  outside this WebDAV mount (new `DavStatusCode.BadGateway`).
+- **XML property files are rewritten without corruption (N-04)**: the property store truncates the file on
+  save (a shorter rewrite used to leave trailing bytes that made the file unreadable), tolerates
+  properties without a value and no longer swallows parse errors silently.
+- **Digest authentication requires `qop=auth` (N-05)**: responses without `qop`/`nc`/`cnonce` are rejected
+  with `401` instead of being accepted and replayable for the whole nonce lifetime.
+- **Uploaded content is sandboxed (N-06)**: every response now sends `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox` (configurable through `WebDavOptions.ContentSecurityPolicy`), so an
+  uploaded HTML file cannot run scripts or reach the application origin.
+- **Invalid path characters return `403` instead of `500` (N-07)** on Windows (`*`, `?`, `<`, `>`, `"` and
+  oversized paths).
+- **Symlinks/junctions can no longer escape the store root (N-08)**: links are resolved and rejected when
+  they point outside `RootPath`, and reparse points are hidden from directory listings.
+- **`PROPFIND` traversal is iterative (N-09)**: a very deep tree can no longer overflow the stack.
+
+### Fixed
+
+- `SqlLockManager` (SQLite/SQL Server/PostgreSQL) returned the lock id as the resource URI, which broke
+  lock refresh (`412`) and produced a wrong `D:lockroot`; `GetLocksAsync` now reads the `Uri` column and
+  `RefreshLockAsync` returns the refreshed lock instead of an empty `200` (N-10).
+- A tagged `If` condition whose parent collection does not exist caused a `KeyNotFoundException`
+  (HTTP 500); it now fails the precondition with `412`.
+
+### Added
+
+- `WebDavOptions.ContentSecurityPolicy` (default `sandbox`; `null` or empty disables the header).
+- `DavStatusCode.BadGateway` (502) for foreign `COPY`/`MOVE` destinations.
+
+### Changed
+
+- `COPY`/`MOVE` with a `Destination` outside the mounted path base return `502 Bad Gateway` instead of
+  being silently remapped or throwing `500`.
+- Requests whose paths the file system rejects (invalid characters, oversized paths) return `403`.
+
+### Breaking changes
+
+- Digest clients that do not support `qop` (RFC 2069 style) are rejected; they must use `qop=auth`.
+- Requests that traverse a symlink/junction pointing outside `RootPath` now return `403`, and links are no
+  longer listed in `PROPFIND`/directory listings.
+- Responses add `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox` by default; set
+  `WebDavOptions.ContentSecurityPolicy = null` to remove the policy header.
+- `PUT`/`MKCOL`/`DELETE`/`MOVE`/`COPY` inside a collection locked with `Depth: 0` now require the
+  collection lock token, as required by RFC 4918 §7.4.
+
 ## [1.2.0] - 2026-10-07
 
 ### Security
@@ -97,7 +154,8 @@ First packaged release of this fork (migration to .NET 10).
 - Basic and Digest authentication.
 - Local file store, in-memory and SQL lock managers, XML and SQL property stores.
 
-[Unreleased]: https://github.com/danielstanus/Dav.AspNetCore.Server/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/danielstanus/Dav.AspNetCore.Server/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.3.0
 [1.2.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.2.0
 [1.1.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.1.0
 [1.0.0]: https://github.com/danielstanus/Dav.AspNetCore.Server/releases/tag/v1.0.0

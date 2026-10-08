@@ -43,6 +43,70 @@ internal static class UriHelper
         }
     }
 
+    /// <summary>
+    /// Removes the request path base from a destination path so it maps to the store uri.
+    /// </summary>
+    /// <remarks>
+    /// RFC 4918 allows an absolute destination; when it points outside of this WebDAV mount it is a
+    /// foreign destination and must be rejected (502 Bad Gateway), never executed against the store.
+    /// The old implementation stripped the base length blindly, which threw an
+    /// <see cref="ArgumentOutOfRangeException"/> for shorter paths and silently mapped destinations
+    /// of other prefixes into the store.
+    /// </remarks>
+    /// <param name="pathBase">The request path base (may be empty or null).</param>
+    /// <param name="destination">The parsed destination uri.</param>
+    /// <param name="result">The destination uri without the path base.</param>
+    /// <returns>True when the destination belongs to the path base, otherwise false.</returns>
+    public static bool TryRemovePathBase(string? pathBase, Uri destination, out Uri result)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        result = destination;
+
+        if (string.IsNullOrEmpty(pathBase))
+            return true;
+
+        var normalizedBase = pathBase.Replace('\\', '/').TrimEnd('/');
+        if (normalizedBase.Length == 0)
+            return true;
+
+        var localPath = destination.LocalPath.Replace('\\', '/');
+
+        if (!localPath.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // The base must match a whole path segment: "/dav" matches "/dav/x" and "/dav",
+        // but not a sibling such as "/davx/y".
+        if (localPath.Length > normalizedBase.Length && localPath[normalizedBase.Length] != '/')
+            return false;
+
+        result = CreateUri(localPath.Substring(normalizedBase.Length));
+        return true;
+    }
+
+    /// <summary>
+    /// Returns a canonical uri for lock lookups: the local path without a trailing separator
+    /// (except the root).
+    /// </summary>
+    /// <remarks>
+    /// Collection uris built with <see cref="GetParent"/> keep the trailing slash ("/dir/"), but
+    /// the ADO lock managers compare the raw local path stored for the lock ("/dir"), so a
+    /// non-normalized collection uri would never match a lock on the collection. The in-memory
+    /// manager normalizes internally; normalizing here keeps every manager consistent.
+    /// </remarks>
+    /// <param name="uri">The uri to normalize.</param>
+    /// <returns>The uri without a trailing path separator.</returns>
+    public static Uri NormalizeLockUri(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+
+        var localPath = uri.LocalPath.Replace('\\', '/');
+        if (localPath.Length <= 1 || !localPath.EndsWith('/'))
+            return uri;
+
+        return CreateUri(localPath.TrimEnd('/'));
+    }
+
     public static Uri GetParent(this Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri, nameof(uri));

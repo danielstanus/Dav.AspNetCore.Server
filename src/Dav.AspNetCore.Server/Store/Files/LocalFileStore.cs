@@ -93,22 +93,40 @@ public class LocalFileStore : FileStore
     public override ValueTask<Uri[]> GetFilesAsync(Uri uri, CancellationToken cancellationToken)
     {
         var path = StorePath.Resolve(options.RootPath, uri.LocalPath);
-        return ValueTask.FromResult(System.IO.Directory.GetFiles(path).Select(x =>
-        {
-            // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
-            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
-            return UriHelper.CreateUri(relativePath);
-        }).ToArray());
+        return ValueTask.FromResult(System.IO.Directory.GetFiles(path)
+            // Links are resolved (and contained) by StorePath on access; hiding them in listings avoids
+            // walking through a link that could point outside of the root (CWE-59).
+            .Where(x => !IsReparsePoint(x))
+            .Select(x =>
+            {
+                // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
+                var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
+                return UriHelper.CreateUri(relativePath);
+            }).ToArray());
     }
 
     public override ValueTask<Uri[]> GetDirectoriesAsync(Uri uri, CancellationToken cancellationToken)
     {
         var path = StorePath.Resolve(options.RootPath, uri.LocalPath);
-        return ValueTask.FromResult(System.IO.Directory.GetDirectories(path).Select(x =>
+        return ValueTask.FromResult(System.IO.Directory.GetDirectories(path)
+            .Where(x => !IsReparsePoint(x))
+            .Select(x =>
+            {
+                // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
+                var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
+                return UriHelper.CreateUri(relativePath);
+            }).ToArray());
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try
         {
-            // Path.GetRelativePath returns backslashes on windows, uris always use forward slashes.
-            var relativePath = $"/{Path.GetRelativePath(options.RootPath, x)}".Replace('\\', '/');
-            return UriHelper.CreateUri(relativePath);
-        }).ToArray());
+            return (System.IO.File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

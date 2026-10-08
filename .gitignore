@@ -11,6 +11,10 @@ WowiCraft/Files/*
 ## Internal work-in-progress notes (e.g. security report / to-do). Not part of the repository.
 to-do/
 
+## Local AI assistant context (AGENTS.md/CLAUDE.md). Not part of the repository for now.
+AGENTS.md
+CLAUDE.md
+
 # User-specific files
 *.suo
 *.user

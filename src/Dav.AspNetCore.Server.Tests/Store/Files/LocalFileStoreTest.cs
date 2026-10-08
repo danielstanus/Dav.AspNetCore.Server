@@ -73,4 +73,50 @@ public class LocalFileStoreTest : IDisposable
 
         Assert.Throws<InvalidOperationException>(() => services.AddWebDav(builder => builder.AddLocalFiles()));
     }
+
+    [Fact]
+    public async Task GetDirectoriesAsync_SkipsLinks()
+    {
+        // arrange
+        var store = new LocalFileStore(new LocalFileStoreOptions { RootPath = rootPath });
+        System.IO.Directory.CreateDirectory(Path.Combine(rootPath, "real"));
+        var target = Path.Combine(Path.GetTempPath(), $"dav-link-target-{Guid.NewGuid():N}");
+        System.IO.Directory.CreateDirectory(target);
+
+        try
+        {
+            var linkPath = Path.Combine(rootPath, "link");
+            if (!TryCreateDirectoryLink(linkPath, target))
+                return;
+
+            // act
+            var directories = await store.GetDirectoriesAsync(UriHelper.CreateUri("/"), CancellationToken.None);
+
+            // assert
+            var directory = Assert.Single(directories);
+            Assert.Equal("/real", directory.LocalPath.TrimEnd('/'));
+
+            try
+            {
+                System.IO.Directory.Delete(linkPath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (System.IO.Directory.Exists(target))
+                    System.IO.Directory.Delete(target, recursive: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private static bool TryCreateDirectoryLink(string linkPath, string targetPath)
+        => TestDirectoryLink.TryCreate(linkPath, targetPath);
 }

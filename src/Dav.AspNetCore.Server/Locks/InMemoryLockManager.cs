@@ -64,6 +64,11 @@ public sealed class InMemoryLockManager : ILockManager
              lockType == LockType.Shared) ||
             activeLocks.Count == 0)
         {
+            // Drop expired locks first: they no longer protect anything, but they used to count
+            // towards the limit (blocking every new lock with 507 once the cap was reached) and
+            // kept their owner payload in memory until the process restarted.
+            RemoveExpiredLocks();
+
             // Bound the total number of locks so a client cannot exhaust memory by creating locks forever.
             if (locks.Count >= maxLocks)
                 return new LockResult(DavStatusCode.InsufficientStorage);
@@ -198,6 +203,21 @@ public sealed class InMemoryLockManager : ILockManager
         }
 
         return ValueTask.FromResult<IReadOnlyCollection<ResourceLock>>(allActiveLocks);
+    }
+
+    /// <summary>
+    /// Removes all expired locks. The conditional removal makes sure a lock that was refreshed
+    /// concurrently (same id, new instance) is not dropped by mistake.
+    /// </summary>
+    private void RemoveExpiredLocks()
+    {
+        foreach (var pair in locks)
+        {
+            if (pair.Value.IsActive)
+                continue;
+
+            locks.TryRemove(new KeyValuePair<Uri, ResourceLock>(pair.Key, pair.Value));
+        }
     }
 
     /// <summary>

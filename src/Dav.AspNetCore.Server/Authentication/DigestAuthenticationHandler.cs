@@ -54,20 +54,22 @@ internal class DigestAuthenticationHandler : AuthenticationHandler<DigestAuthent
         parameters.TryGetValue("nc", out var nonceCount);
         parameters.TryGetValue("cnonce", out var clientNonce);
 
-        var hasQop = !string.IsNullOrWhiteSpace(qop);
-        var parsedNonceCount = 0L;
-        if (hasQop)
+        // The challenge always offers qop="auth". RFC 7616 requires the client to use it; without
+        // qop the response would not be replay protected (a captured header would be accepted
+        // until the nonce expires).
+        if (string.IsNullOrWhiteSpace(qop) ||
+            !string.Equals(qop, "auth", StringComparison.OrdinalIgnoreCase))
         {
-            // With qop=auth the client must provide nc and cnonce (RFC 7616), otherwise the
-            // request is not replay protected.
-            if (string.IsNullOrWhiteSpace(nonceCount) || string.IsNullOrWhiteSpace(clientNonce))
-                return AuthenticateResult.Fail("Missing nonce count or client nonce.");
-
-            if (!long.TryParse(nonceCount, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsedNonceCount))
-                return AuthenticateResult.Fail("Invalid nonce count.");
+            return AuthenticateResult.Fail("Unsupported quality of protection parameter.");
         }
 
-        if (!DigestNonceStore.TryValidate(nonce, opaque, hasQop, parsedNonceCount, out var nonceError))
+        if (string.IsNullOrWhiteSpace(nonceCount) || string.IsNullOrWhiteSpace(clientNonce))
+            return AuthenticateResult.Fail("Missing nonce count or client nonce.");
+
+        if (!long.TryParse(nonceCount, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var parsedNonceCount))
+            return AuthenticateResult.Fail("Invalid nonce count.");
+
+        if (!DigestNonceStore.TryValidate(nonce, opaque, parsedNonceCount, out var nonceError))
             return AuthenticateResult.Fail(nonceError ?? "Invalid nonce.");
 
         if (Options.Events.OnPasswordRequested == null)
@@ -87,19 +89,9 @@ internal class DigestAuthenticationHandler : AuthenticationHandler<DigestAuthent
         var ha1 = ComputeHash(algorithm, $"{userName}:{realm}:{password}");
         var ha2 = ComputeHash(algorithm, $"{Context.Request.Method}:{uri}");
 
-        string response;
-        if (!hasQop)
-        {
-            response = ComputeHash(algorithm, $"{ha1}:{nonce}:{ha2}");
-        }
-        else if (qop!.Equals("auth", StringComparison.OrdinalIgnoreCase))
-        {
-            response = ComputeHash(algorithm, $"{ha1}:{nonce}:{nonceCount}:{clientNonce}:{qop}:{ha2}");
-        }
-        else
-        {
-            return AuthenticateResult.Fail("Unsupported quality of protection parameter.");
-        }
+        // qop=auth is enforced above, so the response always includes nc, cnonce and qop
+        // (RFC 7616, section 3.4.1).
+        var response = ComputeHash(algorithm, $"{ha1}:{nonce}:{nonceCount}:{clientNonce}:{qop}:{ha2}");
 
         if (!FixedTimeEquals(response, clientResponse.ToLowerInvariant()))
             return AuthenticateResult.NoResult();

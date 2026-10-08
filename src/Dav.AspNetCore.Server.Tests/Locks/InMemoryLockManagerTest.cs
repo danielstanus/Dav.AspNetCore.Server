@@ -337,6 +337,35 @@ public class InMemoryLockManagerTest
     }
 
     [Fact]
+    public async Task LockAsync_ExpiredLocks_ArePurgedBeforeApplyingTheLimit()
+    {
+        // arrange
+        var expiredLock = new ResourceLock(
+            UriHelper.CreateUri($"urn:uuid:{Guid.NewGuid():D}"),
+            UriHelper.CreateUri("/expired.txt"),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            false,
+            TimeSpan.FromMinutes(5),
+            DateTime.UtcNow - TimeSpan.FromMinutes(10));
+
+        var memoryLockManager = new InMemoryLockManager(new[] { expiredLock }, maxLocks: 1);
+
+        // act
+        var result = await memoryLockManager.LockAsync(
+            UriHelper.CreateUri("/new.txt"),
+            LockType.Exclusive,
+            new XElement("href", "xUnit"),
+            false,
+            TimeSpan.FromMinutes(5));
+
+        // assert
+        Assert.Equal(DavStatusCode.Ok, result.StatusCode);
+        Assert.NotNull(result.ResourceLock);
+        Assert.DoesNotContain(expiredLock, memoryLockManager.Locks);
+    }
+
+    [Fact]
     public void Constructor_InvalidMaxLocks_Throws()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
